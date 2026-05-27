@@ -5,11 +5,16 @@ import { useLocalStorage } from '@vueuse/core'
 import { useCatalogStore } from '@/stores/catalog'
 import { useAllProfilesData, colorForProfile } from '@/composables/useAllProfilesData'
 import { useProfileStore } from '@/stores/profile'
+import { useLogStore } from '@/stores/log'
 import MiniHeatmap from '@/components/MiniHeatmap.vue'
 import LineChart from '@/components/LineChart.vue'
 
 const catalog = useCatalogStore()
 const { exercises } = storeToRefs(catalog)
+
+// 현재 프로필의 권장 칼로리 — 잔디 음식 섭취 max 동적 기준으로 사용
+const log = useLogStore()
+const { recommendedKcal } = storeToRefs(log)
 
 // 모든 프로필 데이터 합산 (잔디·평균·PR 공용 / 신체 추이는 프로필별 분리)
 const {
@@ -41,6 +46,19 @@ const allBody = computed(() => rawBody.value.filter(b => passes(b.profile)))
 
 const outColors = ['#ebedf0', '#c8e6c9', '#9be9a8', '#40c463', '#216e39']
 const inColors = ['#ebedf0', '#fde4cf', '#fcc89b', '#f59e0b', '#b45309']
+
+// 음식 섭취 잔디의 색상 max — 권장 칼로리 기준으로 동적 계산.
+// 권장 × 1.2를 max로 잡으면 권장 100%까지는 75% 이하 단계 (중간 톤),
+// 권장 초과 시에만 가장 진한 단계로 표시되어 "권장 미만인데 많음" 오해 방지.
+const inMax = computed(() => {
+  if (recommendedKcal.value > 0) return Math.round(recommendedKcal.value * 1.2)
+  return 2500
+})
+const inMaxLabel = computed(() =>
+  recommendedKcal.value > 0
+    ? `권장 ${recommendedKcal.value.toLocaleString()} 기준`
+    : '절대량 기준',
+)
 
 // ── 잔디용 합계 맵 ──
 const dailyOutMap = computed(() => {
@@ -301,8 +319,11 @@ const totalCounts = computed(() => ({
           <MiniHeatmap :data="dailyOutMap" :weeks="26" :max="500" :colors="outColors" unit="kcal" />
         </div>
         <div>
-          <div class="heatmap-label muted small">음식 섭취 (kcal{{ isAll ? ' · 합산' : '' }})</div>
-          <MiniHeatmap :data="dailyInMap" :weeks="26" :max="2500" :colors="inColors" unit="kcal" />
+          <div class="heatmap-label muted small">
+            음식 섭취 (kcal{{ isAll ? ' · 합산' : '' }})
+            <span class="muted small" style="margin-left: 6px; opacity: 0.7;">· {{ inMaxLabel }}</span>
+          </div>
+          <MiniHeatmap :data="dailyInMap" :weeks="26" :max="inMax" :colors="inColors" unit="kcal" />
         </div>
       </div>
     </section>
