@@ -574,16 +574,9 @@ const ringStyle = computed(() => ({
   border-radius: 12px;
   position: relative;
 }
-.hero-cell.strong {
-  background: #fbfaf7;
-  border-color: #d9d3c4;
-  border-left: 4px solid #2f7d4a;
-}
 .hero-cell.strong .hero-v { color: #1f5733; }
 .hero-cell.good .hero-v { color: #1f5733; }
-.hero-cell.warn { border-left: 4px solid #d97706; }
 .hero-cell.warn .hero-v { color: #d97706; }
-.hero-cell.over { border-left: 4px solid #b91c1c; background: #fef2f2; }
 .hero-cell.over .hero-v { color: #b91c1c; }
 .hero-cell.ok .hero-v { color: #2f7d4a; }
 .hero-cell.neutral .hero-v { color: #1a1a18; }

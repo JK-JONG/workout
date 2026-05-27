@@ -79,6 +79,16 @@ const intakeStatus = computed<{ label: string; tone: 'ok' | 'warn' | 'over' | 'n
   return            { label: '많이 초과', tone: 'over' }
 })
 
+// 권장 대비 차이 — UI에 "X kcal 더 필요" / "X kcal 초과" 형태로 표시
+const intakeDelta = computed(() => {
+  if (!recommendedKcal.value) return null
+  const diff = kcalIn.value - recommendedKcal.value
+  // 적정 범위(85~110%)면 차이를 표기하지 않음
+  const pct = (kcalIn.value / recommendedKcal.value) * 100
+  if (pct >= 85 && pct <= 110) return null
+  return diff
+})
+
 // 원형 차트(r=50) 둘레 = 2πr ≈ 314.159
 const RING_CIRC = 2 * Math.PI * 50
 const ringDashArray = String(RING_CIRC)
@@ -198,6 +208,13 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
         </div>
         <div v-if="recommendedKcal" class="stat-cap" :class="`tone-${intakeStatus.tone}`">
           {{ intakeStatus.label }} · {{ intakeRatio }}%
+          <template v-if="intakeDelta !== null">
+            <br>
+            <span class="stat-cap-sub">
+              <template v-if="intakeDelta < 0">{{ Math.abs(intakeDelta).toLocaleString() }} kcal 더 필요</template>
+              <template v-else>{{ intakeDelta.toLocaleString() }} kcal 초과</template>
+            </span>
+          </template>
         </div>
       </div>
       <div class="stat">
@@ -437,6 +454,12 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
   font-size: 11px;
   font-weight: 700;
   letter-spacing: -0.005em;
+  line-height: 1.4;
+}
+.stat-cap-sub {
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.85;
 }
 .tone-ok { color: var(--c-accent); }
 .tone-warn { color: var(--c-warn); }
