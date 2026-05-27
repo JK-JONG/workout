@@ -82,8 +82,10 @@ export const useLogStore = defineStore('log', () => {
     workouts.value = [...workouts.value, { ...e, id: crypto.randomUUID(), createdAt: Date.now() }]
   }
 
-  // 같은 날짜·운동에 추가 입력이 들어오면 별도 row가 아니라 기존 entry에 병합.
-  // reps 운동은 setLogs 누적, time/distance 운동은 minutes/km 합산. kcal은 합계.
+  // 같은 날짜·운동에 다시 입력이 들어오면 별도 row가 아니라 기존 entry를 새 값으로 교체.
+  // 합산이 아니라 덮어쓰기 — picker에 직전 값이 prefill 되므로 사용자가 수정 후 저장하면
+  // "수정"의 의미. 합산을 원하면 세트를 늘려서 한 번에 저장해야 함.
+  // id와 createdAt은 보존해서 외부 참조·정렬 안정성 유지.
   function upsertWorkout(e: Omit<WorkoutEntry, 'id' | 'createdAt'>) {
     const idx = workouts.value.findIndex(w => w.date === e.date && w.exerciseId === e.exerciseId)
     if (idx < 0) {
@@ -91,38 +93,12 @@ export const useLogStore = defineStore('log', () => {
       return
     }
     const existing = workouts.value[idx]
-    let merged: WorkoutEntry
-    if (existing.unit === 'reps' && e.unit === 'reps') {
-      const oldSets = existing.setLogs ?? []
-      const newSets = e.setLogs ?? []
-      const allSets = [...oldSets, ...newSets]
-      const weights = allSets.map(s => s.weight || 0)
-      merged = {
-        ...existing,
-        setLogs: allSets,
-        sets: allSets.length,
-        reps: Math.round(allSets.reduce((a, b) => a + b.reps, 0) / Math.max(allSets.length, 1)),
-        weight: Math.max(...weights) || undefined,
-        kcal: existing.kcal + e.kcal,
-      }
-    } else if (existing.unit === 'time' && e.unit === 'time') {
-      merged = {
-        ...existing,
-        minutes: (existing.minutes ?? 0) + (e.minutes ?? 0),
-        kcal: existing.kcal + e.kcal,
-      }
-    } else if (existing.unit === 'distance' && e.unit === 'distance') {
-      merged = {
-        ...existing,
-        km: Math.round(((existing.km ?? 0) + (e.km ?? 0)) * 10) / 10,
-        kcal: existing.kcal + e.kcal,
-      }
-    } else {
-      // unit이 다른 비정상 케이스 — 그냥 새 entry 추가
-      addWorkout(e)
-      return
+    const replaced: WorkoutEntry = {
+      ...e,
+      id: existing.id,
+      createdAt: existing.createdAt,
     }
-    workouts.value = [...workouts.value.slice(0, idx), merged, ...workouts.value.slice(idx + 1)]
+    workouts.value = [...workouts.value.slice(0, idx), replaced, ...workouts.value.slice(idx + 1)]
   }
   function addBody(e: Omit<BodyEntry, 'id' | 'createdAt'>) {
     body.value = [...body.value, { ...e, id: crypto.randomUUID(), createdAt: Date.now() }]
@@ -155,9 +131,11 @@ export const useLogStore = defineStore('log', () => {
     return m
   })
 
+  // 같은 운동의 가장 최근 기록. 오늘(selectedDate)에 이미 추가한 기록도 포함 — 같은 운동을
+  // 다시 선택했을 때 직전에 입력한 reps/weight가 그대로 prefill 되도록.
   function lastWorkoutOf(exerciseId: string): WorkoutEntry | null {
     const candidates = workouts.value
-      .filter(w => w.exerciseId === exerciseId && w.date < selectedDate.value)
+      .filter(w => w.exerciseId === exerciseId && w.date <= selectedDate.value)
       .sort((a, b) => (b.date.localeCompare(a.date)) || (b.createdAt - a.createdAt))
     return candidates[0] ?? null
   }
