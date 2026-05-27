@@ -1,10 +1,32 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useLogStore } from '@/stores/log'
 
 const log = useLogStore()
-const { kcalIn, kcalOut, kcalNet, recommendedKcal } = storeToRefs(log)
+const { kcalIn, kcalOut, kcalNet, recommendedKcal, recommendedKcalDetail } = storeToRefs(log)
+
+// 계산식 팝오버
+const showFormula = ref(false)
+const formulaRef = ref<HTMLElement | null>(null)
+function toggleFormula() { showFormula.value = !showFormula.value }
+function onDocClick(ev: MouseEvent) {
+  if (!showFormula.value) return
+  const el = formulaRef.value
+  if (el && !el.contains(ev.target as Node)) showFormula.value = false
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('mousedown', onDocClick)
+  onBeforeUnmount(() => document.removeEventListener('mousedown', onDocClick))
+}
+
+const activityLabel = computed(() => {
+  const a = recommendedKcalDetail.value?.activity ?? 0
+  if (a >= 1.7) return '높음'
+  if (a >= 1.5) return '보통'
+  if (a >= 1.35) return '약간'
+  return '낮음'
+})
 
 function intensityLabel(kcal: number): string {
   if (kcal === 0) return '없음'
@@ -63,11 +85,58 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
           <div class="rec-status-label" :class="intakeStatus.tone">{{ intakeStatus.label }}</div>
         </div>
       </div>
-      <div class="ring-meta">
-        <div class="rec-label">권장 {{ recommendedKcal.toLocaleString() }} kcal</div>
+      <div class="ring-meta" ref="formulaRef">
+        <div class="rec-label">
+          <span>권장 {{ recommendedKcal.toLocaleString() }} kcal</span>
+          <button
+            type="button"
+            class="info-btn"
+            @click="toggleFormula"
+            :aria-expanded="showFormula"
+            aria-label="계산식 보기"
+            title="계산식 보기"
+          >?</button>
+        </div>
         <div class="rec-remain muted small">
           <template v-if="remain > 0">{{ remain.toLocaleString() }} kcal 남음</template>
           <template v-else>{{ Math.abs(remain).toLocaleString() }} kcal 초과</template>
+        </div>
+
+        <div v-if="showFormula && recommendedKcalDetail" class="formula-pop" role="dialog">
+          <div class="formula-head">
+            <span>{{ recommendedKcalDetail.method === 'mifflin' ? 'Mifflin-St Jeor 공식' : '간이 추정 (체중 × 30)' }}</span>
+            <button type="button" class="formula-x" @click="showFormula = false" aria-label="닫기">×</button>
+          </div>
+          <ul v-if="recommendedKcalDetail.method === 'mifflin'" class="formula-list num">
+            <li><span>체중</span><b>{{ recommendedKcalDetail.weightKg }} kg</b></li>
+            <li><span>신장</span><b>{{ recommendedKcalDetail.heightCm }} cm</b></li>
+            <li><span>나이</span><b>{{ recommendedKcalDetail.age }}세</b></li>
+            <li><span>성별</span><b>{{ recommendedKcalDetail.sex === 'male' ? '남성' : '여성' }}</b></li>
+            <li><span>활동량</span><b>×{{ recommendedKcalDetail.activity?.toFixed(2) }} ({{ activityLabel }})</b></li>
+            <li class="formula-eq">
+              <span>BMR</span>
+              <b>{{ recommendedKcalDetail.bmr?.toLocaleString() }} kcal</b>
+            </li>
+            <li class="formula-eq strong">
+              <span>TDEE</span>
+              <b>{{ recommendedKcalDetail.tdee.toLocaleString() }} kcal</b>
+            </li>
+          </ul>
+          <ul v-else class="formula-list num">
+            <li><span>체중</span><b>{{ recommendedKcalDetail.weightKg }} kg</b></li>
+            <li class="formula-eq strong">
+              <span>권장</span>
+              <b>{{ recommendedKcalDetail.tdee.toLocaleString() }} kcal</b>
+            </li>
+          </ul>
+          <div class="formula-foot muted small">
+            <template v-if="recommendedKcalDetail.method === 'mifflin'">
+              BMR(남) = 10·W + 6.25·H − 5·age + 5 / BMR(여) = 10·W + 6.25·H − 5·age − 161 · TDEE = BMR × 활동계수
+            </template>
+            <template v-else>
+              신장·나이·성별을 입력하면 더 정확한 Mifflin-St Jeor 공식으로 계산됩니다.
+            </template>
+          </div>
         </div>
       </div>
     </div>
@@ -188,6 +257,9 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
 .rec-status-label.neutral { color: var(--c-text-muted); }
 
 .rec-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: var(--fs-sm);
   font-weight: 700;
   letter-spacing: -0.005em;
@@ -195,6 +267,93 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
   font-family: var(--font-num);
 }
 .rec-remain { font-size: var(--fs-xs); }
+
+.info-btn {
+  width: 18px; height: 18px;
+  display: inline-grid; place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--c-text-muted);
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border-strong);
+  border-radius: 50%;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  font-family: var(--font-sans);
+}
+.info-btn:hover {
+  background: var(--c-accent);
+  color: #fff;
+  border-color: var(--c-accent);
+}
+
+.ring-meta { position: relative; }
+.formula-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  width: 280px;
+  padding: 12px 14px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 32px -8px rgba(20,18,12,0.2), 0 4px 8px rgba(20,18,12,0.08);
+  animation: fp-pop 0.15s ease-out;
+}
+@keyframes fp-pop {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.formula-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--c-border);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--c-text);
+}
+.formula-x {
+  width: 22px; height: 22px;
+  display: inline-grid; place-items: center;
+  font-size: 16px;
+  color: var(--c-text-muted);
+  border-radius: 50%;
+  transition: background 0.15s, color 0.15s;
+}
+.formula-x:hover { background: var(--c-surface-2); color: var(--c-text); }
+.formula-list {
+  display: grid;
+  gap: 6px;
+  font-size: var(--fs-xs);
+}
+.formula-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  color: var(--c-text-soft);
+}
+.formula-list li b { color: var(--c-text); font-weight: 600; }
+.formula-list li.formula-eq {
+  padding-top: 6px;
+  border-top: 1px dashed var(--c-border);
+  margin-top: 2px;
+  font-size: var(--fs-sm);
+}
+.formula-list li.formula-eq.strong b {
+  color: var(--c-accent);
+  font-weight: 700;
+  font-size: var(--fs-md);
+}
+.formula-foot {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--c-border);
+  font-size: 10px;
+  line-height: 1.5;
+}
 
 .summary {
   display: grid;

@@ -57,11 +57,14 @@ export interface BodyEntry {
   id: string
   date: string        // YYYY-MM-DD
   weightKg: number    // 필수
+  heightCm?: number   // 신장 (BMR 계산용 — 한 번 입력해두면 캐리오버됨)
   bodyFatPct?: number
   muscleKg?: number
   note?: string
   createdAt: number
 }
+
+export type Sex = 'male' | 'female'
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10)
@@ -74,6 +77,11 @@ export const useLogStore = defineStore('log', () => {
   const workouts = useProfileStorage<WorkoutEntry[]>('workouts', [])
   const body = useProfileStorage<BodyEntry[]>('body', [])
   const selectedDate = useProfileStorage<string>('selectedDate', todayStr())
+
+  // BMR 계산용 프로필 정적 정보. 처음 신체 입력 시 함께 받음.
+  const sex = useProfileStorage<Sex | ''>('sex', '')
+  const birthYear = useProfileStorage<number | null>('birthYear', null)
+  const activityLevel = useProfileStorage<number>('activityLevel', 1.55) // sedentary 1.2 / light 1.375 / moderate 1.55 / active 1.725
 
   function addMeal(e: Omit<MealEntry, 'id' | 'createdAt'>) {
     meals.value = [...meals.value, { ...e, id: crypto.randomUUID(), createdAt: Date.now() }]
@@ -146,13 +154,41 @@ export const useLogStore = defineStore('log', () => {
     return [...body.value].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)[0]
   })
 
-  // 하루 권장 섭취 칼로리 (체중 × 30 단순 추정 — 활동량 보통 기준 TDEE 근사).
-  // 키/나이/성별을 묻지 않는 가벼운 추정치라 ±200 kcal 정도 오차는 정상.
-  const recommendedKcal = computed<number>(() => {
+  // 하루 권장 섭취 (TDEE) 계산.
+  // 신장·나이·성별이 있으면 Mifflin-St Jeor 공식, 없으면 체중 × 30 fallback.
+  // BMR(남) = 10·W + 6.25·H - 5·age + 5
+  // BMR(여) = 10·W + 6.25·H - 5·age - 161
+  // TDEE = BMR × activityLevel
+  interface KcalBreakdown {
+    method: 'mifflin' | 'simple'
+    weightKg: number
+    heightCm?: number
+    age?: number
+    sex?: Sex
+    activity?: number
+    bmr?: number
+    tdee: number
+  }
+  const recommendedKcalDetail = computed<KcalBreakdown | null>(() => {
     const w = latestBody.value?.weightKg ?? weightKg.value
-    if (!w || w <= 0) return 0
-    return Math.round((w * 30) / 10) * 10
+    if (!w || w <= 0) return null
+    const h = latestBody.value?.heightCm
+    const by = birthYear.value
+    const s = sex.value
+    const now = new Date()
+    const age = by ? now.getFullYear() - by : null
+    const a = activityLevel.value || 1.55
+
+    if (h && h > 0 && age && age > 0 && s) {
+      const bmr = s === 'male'
+        ? 10 * w + 6.25 * h - 5 * age + 5
+        : 10 * w + 6.25 * h - 5 * age - 161
+      const tdee = Math.round((bmr * a) / 10) * 10
+      return { method: 'mifflin', weightKg: w, heightCm: h, age, sex: s, activity: a, bmr: Math.round(bmr), tdee }
+    }
+    return { method: 'simple', weightKg: w, tdee: Math.round((w * 30) / 10) * 10 }
   })
+  const recommendedKcal = computed<number>(() => recommendedKcalDetail.value?.tdee ?? 0)
 
   // 선택된 날짜에 신체 기록이 없고 과거에 기록이 있으면 그 날짜로 자동 복제.
   // 운동 kcal 계산용 기준 체중도 함께 갱신.
@@ -190,6 +226,8 @@ export const useLogStore = defineStore('log', () => {
     dailyOutMap, dailyInMap,
     latestBody,
     recommendedKcal,
+    recommendedKcalDetail,
+    sex, birthYear, activityLevel,
     addMeal, addWorkout, addBody,
     removeMeal, removeWorkout, removeBody, updateBody,
     lastWorkoutOf,
