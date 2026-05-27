@@ -1,0 +1,159 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+
+const props = withDefaults(defineProps<{
+  data: Map<string, number>       // 'YYYY-MM-DD' → value
+  weeks?: number                   // 표시할 주 수 (기본 26 = 약 6개월)
+  max?: number                     // 색상 스케일 상한
+  unit?: string                    // 툴팁 단위
+  colors?: string[]                // 5단계 색상
+}>(), {
+  weeks: 26,
+  max: 500,
+  unit: 'kcal',
+  colors: () => ['#ebedf0', '#c8e6c9', '#9be9a8', '#40c463', '#216e39'],
+})
+
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
+
+function fmt(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
+}
+
+// 오늘부터 weeks*7일 전까지. 그리드는 가장 오래된 일요일부터 시작.
+const grid = computed(() => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  // 마지막 컬럼의 토요일까지 채워서 정렬되게
+  const end = new Date(today)
+  const daysToSat = 6 - end.getDay()    // 일=0 ... 토=6
+  end.setDate(end.getDate() + daysToSat)
+  const start = new Date(end)
+  start.setDate(end.getDate() - props.weeks * 7 + 1)
+
+  const cells: Array<{ date: string; weekday: number; value: number; future: boolean; monthLabel?: string }> = []
+  let lastMonth = -1
+  for (let i = 0; i < props.weeks * 7; i++) {
+    const d = new Date(start)
+    d.setDate(start.getDate() + i)
+    const key = fmt(d)
+    const value = props.data.get(key) ?? 0
+    const future = d.getTime() > today.getTime()
+    // 새 주(일요일)이고 새 달이면 월 라벨
+    let monthLabel: string | undefined
+    if (d.getDay() === 0 && d.getMonth() !== lastMonth) {
+      monthLabel = `${d.getMonth() + 1}월`
+      lastMonth = d.getMonth()
+    }
+    cells.push({ date: key, weekday: d.getDay(), value, future, monthLabel })
+  }
+  return cells
+})
+
+function levelOf(value: number): number {
+  if (value === 0) return 0
+  const r = value / props.max
+  if (r < 0.25) return 1
+  if (r < 0.5) return 2
+  if (r < 0.75) return 3
+  return 4
+}
+
+// 컬럼별 월 라벨 (일요일 셀에 잡혀있는 라벨)
+const monthLabels = computed(() => {
+  const labels: Array<{ col: number; label: string }> = []
+  for (let col = 0; col < props.weeks; col++) {
+    const sunday = grid.value[col * 7]
+    if (sunday?.monthLabel) labels.push({ col, label: sunday.monthLabel })
+  }
+  return labels
+})
+</script>
+
+<template>
+  <div class="mh">
+    <!-- 월 라벨 -->
+    <div class="mh-months" :style="{ gridTemplateColumns: `12px repeat(${weeks}, 1fr)` }">
+      <span></span>
+      <span v-for="col in weeks" :key="col" class="mh-month-cell">
+        <template v-for="m in monthLabels" :key="m.col">
+          <template v-if="m.col === col - 1">{{ m.label }}</template>
+        </template>
+      </span>
+    </div>
+
+    <div class="mh-body">
+      <!-- 요일 라벨 (월·수·금만 표시) -->
+      <div class="mh-days">
+        <span v-for="(d, i) in WEEKDAYS" :key="i" class="mh-day" :class="{ show: i === 1 || i === 3 || i === 5 }">{{ d }}</span>
+      </div>
+
+      <!-- 그리드: 컬럼 = 주, 셀 = 일 -->
+      <div class="mh-grid" :style="{ gridTemplateColumns: `repeat(${weeks}, 1fr)` }">
+        <div v-for="col in weeks" :key="col" class="mh-col">
+          <div
+            v-for="row in 7"
+            :key="row"
+            class="mh-cell"
+            :class="{ future: grid[(col - 1) * 7 + (row - 1)].future }"
+            :style="{ background: grid[(col - 1) * 7 + (row - 1)].future ? 'transparent' : colors[levelOf(grid[(col - 1) * 7 + (row - 1)].value)] }"
+            :title="`${grid[(col - 1) * 7 + (row - 1)].date} · ${grid[(col - 1) * 7 + (row - 1)].value} ${unit}`"
+          ></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 레전드 -->
+    <div class="mh-legend">
+      <span>적음</span>
+      <span v-for="c in colors" :key="c" class="mh-legend-cell" :style="{ background: c }"></span>
+      <span>많음</span>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.mh { display: flex; flex-direction: column; gap: 4px; font-family: var(--font-num); }
+
+.mh-months {
+  display: grid;
+  font-size: 9px;
+  color: var(--c-text-muted);
+  letter-spacing: -0.02em;
+  padding-left: 16px;
+}
+.mh-month-cell { text-align: left; }
+
+.mh-body { display: flex; gap: 4px; }
+
+.mh-days {
+  display: grid; grid-template-rows: repeat(7, 1fr);
+  font-size: 9px; color: var(--c-text-muted);
+  width: 12px; gap: 2px;
+}
+.mh-day { line-height: 1; opacity: 0; height: 10px; }
+.mh-day.show { opacity: 1; }
+
+.mh-grid { flex: 1; display: grid; gap: 2px; }
+.mh-col { display: grid; grid-template-rows: repeat(7, 1fr); gap: 2px; }
+.mh-cell {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.03);
+  transition: transform 0.1s;
+  min-height: 10px;
+}
+.mh-cell:hover { transform: scale(1.4); border-color: var(--c-text-soft); z-index: 2; position: relative; }
+.mh-cell.future { border: 1px dashed var(--c-border); }
+
+.mh-legend {
+  display: flex; align-items: center; gap: 3px;
+  justify-content: flex-end;
+  font-size: 10px; color: var(--c-text-muted);
+  margin-top: 2px;
+}
+.mh-legend-cell { width: 9px; height: 9px; border-radius: 2px; }
+</style>
