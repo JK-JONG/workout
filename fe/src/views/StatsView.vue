@@ -1,27 +1,38 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useLogStore, type WorkoutEntry } from '@/stores/log'
 import { useCatalogStore } from '@/stores/catalog'
+import { useAllProfilesData, colorForProfile } from '@/composables/useAllProfilesData'
 import MiniHeatmap from '@/components/MiniHeatmap.vue'
 import LineChart from '@/components/LineChart.vue'
 
-const log = useLogStore()
 const catalog = useCatalogStore()
-const { workouts, meals, body, dailyOutMap, dailyInMap } = storeToRefs(log)
 const { exercises } = storeToRefs(catalog)
+
+// 모든 프로필 데이터 합산 (잔디·평균·PR 공용 / 신체 추이는 프로필별 분리)
+const { allWorkouts, allMeals, allBody } = useAllProfilesData()
 
 const outColors = ['#ebedf0', '#c8e6c9', '#9be9a8', '#40c463', '#216e39']
 const inColors = ['#ebedf0', '#fde4cf', '#fcc89b', '#f59e0b', '#b45309']
 
-// ── 잔디용 데이터 — 운동 횟수(건수) 기준 잔디도 별도로
+// ── 잔디용 합계 맵 ──
+const dailyOutMap = computed(() => {
+  const m = new Map<string, number>()
+  for (const w of allWorkouts.value) m.set(w.date, (m.get(w.date) ?? 0) + w.kcal)
+  return m
+})
+const dailyInMap = computed(() => {
+  const m = new Map<string, number>()
+  for (const e of allMeals.value) m.set(e.date, (m.get(e.date) ?? 0) + e.kcal)
+  return m
+})
 const dailyWorkoutCount = computed(() => {
   const m = new Map<string, number>()
-  for (const w of workouts.value) m.set(w.date, (m.get(w.date) ?? 0) + 1)
+  for (const w of allWorkouts.value) m.set(w.date, (m.get(w.date) ?? 0) + 1)
   return m
 })
 
-// ── 최근 30일/90일/1년 통계 ──
+// ── 최근 N일 통계 ──
 function inWindow(date: string, days: number): boolean {
   const d = new Date(date)
   const now = new Date()
@@ -29,48 +40,49 @@ function inWindow(date: string, days: number): boolean {
   const diff = (now.getTime() - d.getTime()) / 86400000
   return diff >= 0 && diff < days
 }
-
 function avgKcalOut(days: number): number {
   let total = 0
-  for (const [date, kcal] of dailyOutMap.value) {
-    if (inWindow(date, days)) total += kcal
-  }
+  for (const [date, kcal] of dailyOutMap.value) if (inWindow(date, days)) total += kcal
   return Math.round(total / days)
 }
 function avgKcalIn(days: number): number {
   let total = 0
-  for (const [date, kcal] of dailyInMap.value) {
-    if (inWindow(date, days)) total += kcal
-  }
+  for (const [date, kcal] of dailyInMap.value) if (inWindow(date, days)) total += kcal
   return Math.round(total / days)
 }
 function workoutDays(days: number): number {
   const dates = new Set<string>()
-  for (const w of workouts.value) if (inWindow(w.date, days)) dates.add(w.date)
+  for (const w of allWorkouts.value) if (inWindow(w.date, days)) dates.add(w.date)
   return dates.size
 }
 
-const stats30 = computed(() => ({
-  avgOut: avgKcalOut(30),
-  avgIn: avgKcalIn(30),
-  days: workoutDays(30),
-}))
-const stats90 = computed(() => ({
-  avgOut: avgKcalOut(90),
-  avgIn: avgKcalIn(90),
-  days: workoutDays(90),
-}))
+const stats30 = computed(() => ({ avgOut: avgKcalOut(30), avgIn: avgKcalIn(30), days: workoutDays(30) }))
+const stats90 = computed(() => ({ avgOut: avgKcalOut(90), avgIn: avgKcalIn(90), days: workoutDays(90) }))
 
-// ── 부위별 빈도 (최근 90일, routine 운동만) ──
+// ── 프로필별 최근 30일 활동 분포 ──
+const perProfileActivity = computed(() => {
+  const m = new Map<string, { count: number; kcal: number }>()
+  for (const w of allWorkouts.value) {
+    if (!inWindow(w.date, 30)) continue
+    const cur = m.get(w.profile) ?? { count: 0, kcal: 0 }
+    cur.count++
+    cur.kcal += w.kcal
+    m.set(w.profile, cur)
+  }
+  return Array.from(m.entries())
+    .map(([profile, v]) => ({ profile, ...v, color: colorForProfile(profile) }))
+    .sort((a, b) => b.count - a.count)
+})
+
+// ── 부위별 빈도 (최근 90일) ──
 const exerciseById = computed(() => {
   const m = new Map<string, typeof exercises.value[number]>()
   for (const e of exercises.value) m.set(e.id, e)
   return m
 })
-
 const categoryFreq = computed(() => {
   const m = new Map<string, number>()
-  for (const w of workouts.value) {
+  for (const w of allWorkouts.value) {
     if (!inWindow(w.date, 90)) continue
     const ex = exerciseById.value.get(w.exerciseId)
     const cat = ex?.category ?? '기타'
@@ -81,7 +93,7 @@ const categoryFreq = computed(() => {
   return arr.map(([cat, count]) => ({ cat, count, pct: (count / max) * 100 }))
 })
 
-// ── 신체 추이 데이터 (최근 90일) ──
+// ── 신체 추이 (프로필별 색상 분리, 최근 90일) ──
 function dateToDayIdx(date: string, baseDate: Date): number {
   const d = new Date(date)
   return Math.round((d.getTime() - baseDate.getTime()) / 86400000)
@@ -91,16 +103,31 @@ const bodyChart = computed(() => {
   const base = new Date()
   base.setHours(0, 0, 0, 0)
   base.setDate(base.getDate() - 89)
-  const sorted = [...body.value]
-    .filter(b => inWindow(b.date, 90))
-    .sort((a, b) => a.date.localeCompare(b.date))
-  if (!sorted.length) return null
 
-  const weightPts = sorted.map(b => ({ x: dateToDayIdx(b.date, base), y: b.weightKg }))
-  const fatPts = sorted.filter(b => b.bodyFatPct).map(b => ({ x: dateToDayIdx(b.date, base), y: b.bodyFatPct! }))
-  const musclePts = sorted.filter(b => b.muscleKg).map(b => ({ x: dateToDayIdx(b.date, base), y: b.muscleKg! }))
+  // 프로필별 그룹
+  const byProfile = new Map<string, typeof allBody.value>()
+  for (const b of allBody.value) {
+    if (!inWindow(b.date, 90)) continue
+    const list = byProfile.get(b.profile) ?? []
+    list.push(b)
+    byProfile.set(b.profile, list)
+  }
 
-  // x 라벨: 30일 단위
+  const weight: { label: string; color: string; points: { x: number; y: number }[] }[] = []
+  const fat: typeof weight = []
+  const muscle: typeof weight = []
+
+  for (const [p, list] of byProfile) {
+    const sorted = [...list].sort((a, b) => a.date.localeCompare(b.date))
+    const color = colorForProfile(p)
+    const w = sorted.map(b => ({ x: dateToDayIdx(b.date, base), y: b.weightKg }))
+    if (w.length) weight.push({ label: p, color, points: w })
+    const f = sorted.filter(b => b.bodyFatPct).map(b => ({ x: dateToDayIdx(b.date, base), y: b.bodyFatPct! }))
+    if (f.length) fat.push({ label: p, color, points: f })
+    const mu = sorted.filter(b => b.muscleKg).map(b => ({ x: dateToDayIdx(b.date, base), y: b.muscleKg! }))
+    if (mu.length) muscle.push({ label: p, color, points: mu })
+  }
+
   const xLabels: { x: number; label: string }[] = []
   for (let i = 0; i <= 89; i += 30) {
     const d = new Date(base)
@@ -109,35 +136,22 @@ const bodyChart = computed(() => {
   }
   xLabels.push({ x: 89, label: '오늘' })
 
-  return { weightPts, fatPts, musclePts, xLabels }
+  return { weight, fat, muscle, xLabels, hasAny: byProfile.size > 0 }
 })
 
-const weightSeries = computed(() => {
-  if (!bodyChart.value) return []
-  return [{ label: '몸무게', color: '#2f7d4a', points: bodyChart.value.weightPts }]
-})
-const fatSeries = computed(() => {
-  if (!bodyChart.value || !bodyChart.value.fatPts.length) return []
-  return [{ label: '체지방률', color: '#b45309', points: bodyChart.value.fatPts }]
-})
-const muscleSeries = computed(() => {
-  if (!bodyChart.value || !bodyChart.value.musclePts.length) return []
-  return [{ label: '골격근량', color: '#1d4ed8', points: bodyChart.value.musclePts }]
-})
-
-// ── 칼로리 추이 (최근 30일) — net 라인
+// ── 칼로리 추이 (최근 30일) ──
 const kcalChart = computed(() => {
   const base = new Date()
   base.setHours(0, 0, 0, 0)
   base.setDate(base.getDate() - 29)
-  const pts: { date: string; idx: number; out: number; in: number; net: number }[] = []
+  const pts: { idx: number; out: number; in: number }[] = []
   for (let i = 0; i < 30; i++) {
     const d = new Date(base)
     d.setDate(base.getDate() + i)
     const key = d.toISOString().slice(0, 10)
     const out = dailyOutMap.value.get(key) ?? 0
     const inv = dailyInMap.value.get(key) ?? 0
-    pts.push({ date: key, idx: i, out, in: inv, net: inv - out })
+    pts.push({ idx: i, out, in: inv })
   }
   const xLabels: { x: number; label: string }[] = []
   for (let i = 0; i < 30; i += 7) {
@@ -148,42 +162,38 @@ const kcalChart = computed(() => {
   xLabels.push({ x: 29, label: '오늘' })
   return { pts, xLabels }
 })
+const kcalSeries = computed(() => [
+  { label: '소모', color: '#2f7d4a', points: kcalChart.value.pts.map(p => ({ x: p.idx, y: p.out })) },
+  { label: '섭취', color: '#b45309', points: kcalChart.value.pts.map(p => ({ x: p.idx, y: p.in })) },
+])
 
-const kcalSeries = computed(() => {
-  const c = kcalChart.value
-  return [
-    { label: '소모', color: '#2f7d4a', points: c.pts.map(p => ({ x: p.idx, y: p.out })) },
-    { label: '섭취', color: '#b45309', points: c.pts.map(p => ({ x: p.idx, y: p.in })) },
-  ]
-})
-
-// 최고 기록 (운동 PR — reps 운동의 최대 무게)
+// ── PR (모든 프로필 합산, 사람도 표시) ──
 const personalBests = computed(() => {
-  const best = new Map<string, { name: string; weight: number; date: string }>()
-  for (const w of workouts.value) {
+  const best = new Map<string, { name: string; weight: number; date: string; profile: string }>()
+  for (const w of allWorkouts.value) {
     if (w.unit !== 'reps' || !w.weight) continue
-    const cur = best.get(w.exerciseId)
+    const key = `${w.profile}|${w.exerciseId}`
+    const cur = best.get(key)
     if (!cur || w.weight > cur.weight) {
-      best.set(w.exerciseId, { name: w.exerciseName, weight: w.weight, date: w.date })
+      best.set(key, { name: w.exerciseName, weight: w.weight, date: w.date, profile: w.profile })
     }
   }
-  return Array.from(best.values()).sort((a, b) => b.weight - a.weight).slice(0, 8)
+  return Array.from(best.values()).sort((a, b) => b.weight - a.weight).slice(0, 10)
 })
 
 const totalCounts = computed(() => ({
-  workouts: workouts.value.length,
-  meals: meals.value.length,
-  body: body.value.length,
-  days: new Set([...workouts.value.map((w: WorkoutEntry) => w.date), ...meals.value.map(m => m.date)]).size,
+  workouts: allWorkouts.value.length,
+  meals: allMeals.value.length,
+  body: allBody.value.length,
 }))
 </script>
 
 <template>
   <div class="stats">
-    <!-- 요약 카드 -->
+    <!-- 요약 -->
     <section class="kpi">
       <div class="kpi-box">
-        <div class="kpi-label">최근 30일</div>
+        <div class="kpi-label">최근 30일 · 합산</div>
         <div class="kpi-row">
           <span class="kpi-mini">운동 <span class="num accent">{{ stats30.days }}</span>일</span>
           <span class="kpi-mini">평균 소모 <span class="num">{{ stats30.avgOut }}</span></span>
@@ -191,7 +201,7 @@ const totalCounts = computed(() => ({
         </div>
       </div>
       <div class="kpi-box">
-        <div class="kpi-label">최근 90일</div>
+        <div class="kpi-label">최근 90일 · 합산</div>
         <div class="kpi-row">
           <span class="kpi-mini">운동 <span class="num accent">{{ stats90.days }}</span>일</span>
           <span class="kpi-mini">평균 소모 <span class="num">{{ stats90.avgOut }}</span></span>
@@ -208,61 +218,77 @@ const totalCounts = computed(() => ({
       </div>
     </section>
 
+    <!-- 프로필별 활동 (최근 30일) -->
+    <section v-if="perProfileActivity.length" class="card">
+      <div class="card-head">
+        <h2 class="card-title">사람별 활동 · 최근 30일</h2>
+      </div>
+      <div class="ppa">
+        <div v-for="p in perProfileActivity" :key="p.profile" class="ppa-row">
+          <span class="ppa-dot" :style="{ background: p.color }"></span>
+          <span class="ppa-name">{{ p.profile }}</span>
+          <span class="num muted small">{{ p.count }}건 · {{ p.kcal }} kcal</span>
+        </div>
+      </div>
+    </section>
+
     <!-- 잔디 -->
     <section class="card">
       <div class="card-head">
-        <h2 class="card-title">활동 잔디 · 1년</h2>
+        <h2 class="card-title">활동 잔디 · 1년 (모든 사람)</h2>
       </div>
       <div class="heatmap-grid">
         <div>
-          <div class="heatmap-label muted small">운동 소모 (kcal)</div>
+          <div class="heatmap-label muted small">운동 소모 (kcal · 합산)</div>
           <MiniHeatmap :data="dailyOutMap" :weeks="52" :max="500" :colors="outColors" unit="kcal" />
         </div>
         <div>
-          <div class="heatmap-label muted small">음식 섭취 (kcal)</div>
+          <div class="heatmap-label muted small">음식 섭취 (kcal · 합산)</div>
           <MiniHeatmap :data="dailyInMap" :weeks="52" :max="2500" :colors="inColors" unit="kcal" />
         </div>
         <div>
-          <div class="heatmap-label muted small">운동 종목 수</div>
+          <div class="heatmap-label muted small">운동 종목 수 (합산)</div>
           <MiniHeatmap :data="dailyWorkoutCount" :weeks="52" :max="6" :colors="outColors" unit="회" />
         </div>
       </div>
     </section>
 
-    <!-- 신체 추이 -->
+    <!-- 신체 추이 (프로필별 색상) -->
     <section class="card">
       <div class="card-head">
-        <h2 class="card-title">신체 추이 · 최근 90일</h2>
-        <span class="muted small">기록 {{ body.length }}건</span>
+        <h2 class="card-title">신체 추이 · 최근 90일 (사람별 색)</h2>
       </div>
-      <div class="charts">
+      <div v-if="bodyChart.hasAny" class="charts">
         <div class="chart-block">
           <div class="chart-label">몸무게 (kg)</div>
-          <LineChart :series="weightSeries" :x-labels="bodyChart?.xLabels ?? []" :show-legend="false" unit="kg" />
+          <LineChart :series="bodyChart.weight" :x-labels="bodyChart.xLabels" :show-legend="true" unit="kg" />
         </div>
-        <div v-if="fatSeries.length" class="chart-block">
+        <div v-if="bodyChart.fat.length" class="chart-block">
           <div class="chart-label">체지방률 (%)</div>
-          <LineChart :series="fatSeries" :x-labels="bodyChart?.xLabels ?? []" :show-legend="false" unit="%" />
+          <LineChart :series="bodyChart.fat" :x-labels="bodyChart.xLabels" :show-legend="false" unit="%" />
         </div>
-        <div v-if="muscleSeries.length" class="chart-block">
+        <div v-if="bodyChart.muscle.length" class="chart-block">
           <div class="chart-label">골격근량 (kg)</div>
-          <LineChart :series="muscleSeries" :x-labels="bodyChart?.xLabels ?? []" :show-legend="false" unit="kg" />
+          <LineChart :series="bodyChart.muscle" :x-labels="bodyChart.xLabels" :show-legend="false" unit="kg" />
         </div>
       </div>
+      <div v-else class="empty">아직 신체 기록이 없습니다.</div>
     </section>
 
     <!-- 칼로리 추이 -->
     <section class="card">
       <div class="card-head">
-        <h2 class="card-title">칼로리 추이 · 최근 30일</h2>
+        <h2 class="card-title">칼로리 추이 · 최근 30일 (합산)</h2>
       </div>
-      <LineChart :series="kcalSeries" :x-labels="kcalChart.xLabels" unit="kcal" />
+      <div class="chart-block">
+        <LineChart :series="kcalSeries" :x-labels="kcalChart.xLabels" unit="kcal" />
+      </div>
     </section>
 
     <!-- 부위별 빈도 -->
     <section class="card">
       <div class="card-head">
-        <h2 class="card-title">부위별 빈도 · 최근 90일</h2>
+        <h2 class="card-title">부위별 빈도 · 최근 90일 (합산)</h2>
       </div>
       <ul v-if="categoryFreq.length" class="bars">
         <li v-for="row in categoryFreq" :key="row.cat" class="bar-row">
@@ -279,12 +305,13 @@ const totalCounts = computed(() => ({
     <!-- PR -->
     <section class="card">
       <div class="card-head">
-        <h2 class="card-title">최고 무게 기록 (Top 8)</h2>
+        <h2 class="card-title">최고 무게 기록 · Top 10 (사람별)</h2>
       </div>
       <ul v-if="personalBests.length" class="pr-list">
-        <li v-for="(pb, i) in personalBests" :key="pb.name + i" class="pr-row">
+        <li v-for="(pb, i) in personalBests" :key="pb.profile + pb.name + i" class="pr-row">
           <span class="pr-rank num">{{ i + 1 }}</span>
           <span class="pr-name">{{ pb.name }}</span>
+          <span class="pr-profile" :style="{ color: colorForProfile(pb.profile) }">{{ pb.profile }}</span>
           <span class="pr-weight num accent">{{ pb.weight }}kg</span>
           <span class="pr-date num muted small">{{ pb.date }}</span>
         </li>
@@ -297,7 +324,7 @@ const totalCounts = computed(() => ({
 <style scoped>
 .stats { display: grid; gap: 14px; }
 .card { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-lg); padding: 14px 16px; box-shadow: var(--shadow-xs); }
-.card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .card-title { font-size: var(--fs-md); font-weight: 600; color: var(--c-text-soft); }
 .muted { color: var(--c-text-muted); }
 .small { font-size: var(--fs-xs); font-weight: normal; }
@@ -305,17 +332,27 @@ const totalCounts = computed(() => ({
 
 .kpi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 @media (max-width: 760px) { .kpi { grid-template-columns: 1fr; } }
-.kpi-box { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-md); padding: 10px 12px; box-shadow: var(--shadow-xs); }
-.kpi-label { font-size: var(--fs-xs); color: var(--c-text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
-.kpi-row { display: flex; flex-wrap: wrap; gap: 12px; font-size: var(--fs-md); }
+.kpi-box { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-md); padding: 8px 12px; box-shadow: var(--shadow-xs); }
+.kpi-label { font-size: var(--fs-xs); color: var(--c-text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+.kpi-row { display: flex; flex-wrap: wrap; gap: 10px; font-size: var(--fs-sm); }
 .kpi-mini { color: var(--c-text-soft); }
-.kpi-mini .num { font-weight: 600; color: var(--c-text); margin: 0 2px; }
+.kpi-mini .num { font-weight: 600; color: var(--c-text); margin: 0 1px; }
+
+.ppa { display: grid; gap: 4px; }
+.ppa-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: var(--radius-sm); }
+.ppa-row:hover { background: var(--c-surface-2); }
+.ppa-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.ppa-name { font-size: var(--fs-sm); font-weight: 500; color: var(--c-text); flex: 1; }
 
 .heatmap-grid { display: grid; gap: 14px; }
+.heatmap-grid > div { max-width: 720px; }     /* 52주 잔디 칸이 너무 커지지 않도록 */
 .heatmap-label { margin-bottom: 4px; }
 
-.charts { display: grid; gap: 12px; }
-.chart-block { display: grid; gap: 4px; }
+.charts { display: grid; gap: 14px; }
+.chart-block {
+  display: grid; gap: 4px;
+  max-width: 720px;     /* 차트 폭 제한: SVG 텍스트 과대 확대 방지 */
+}
 .chart-label { font-size: var(--fs-xs); color: var(--c-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 
 .bars { display: grid; gap: 6px; }
@@ -326,11 +363,18 @@ const totalCounts = computed(() => ({
 .bar-count { font-size: var(--fs-sm); color: var(--c-text-soft); text-align: right; }
 
 .pr-list { display: grid; gap: 2px; }
-.pr-row { display: grid; grid-template-columns: 24px 1fr auto auto; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--radius-md); }
+.pr-row {
+  display: grid;
+  grid-template-columns: 22px 1fr auto auto auto;
+  align-items: center; gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+}
 .pr-row:hover { background: var(--c-surface-2); }
 .pr-rank { color: var(--c-text-muted); text-align: center; font-size: var(--fs-sm); }
-.pr-name { font-size: var(--fs-md); color: var(--c-text); }
-.pr-weight { font-size: var(--fs-md); font-weight: 600; }
-.pr-date { white-space: nowrap; }
+.pr-name { font-size: var(--fs-sm); color: var(--c-text); }
+.pr-profile { font-size: var(--fs-xs); font-weight: 500; }
+.pr-weight { font-size: var(--fs-sm); font-weight: 600; }
+.pr-date { white-space: nowrap; font-size: var(--fs-xs); }
 .empty { padding: 18px; text-align: center; color: var(--c-text-muted); font-size: var(--fs-sm); }
 </style>

@@ -69,7 +69,7 @@ const layout = computed(() => {
 
 <template>
   <div class="lc">
-    <svg v-if="layout" :viewBox="`0 0 ${VB_W} ${layout.height}`" class="lc-svg" preserveAspectRatio="none">
+    <svg v-if="layout" :viewBox="`0 0 ${VB_W} ${layout.height}`" class="lc-svg">
       <!-- 그리드 -->
       <g class="lc-grid">
         <line v-for="(g, i) in layout.grid" :key="i" :x1="PAD_L" :x2="VB_W - PAD_R" :y1="g.y" :y2="g.y" />
@@ -98,18 +98,18 @@ const layout = computed(() => {
 
 <style scoped>
 .lc { display: grid; gap: 4px; }
-.lc-svg { width: 100%; height: auto; display: block; }
+.lc-svg { width: 100%; height: auto; display: block; max-height: 220px; }
 .lc-grid line { stroke: var(--c-border); stroke-width: 0.5; stroke-dasharray: 2 2; }
 .lc-y-label {
   font-family: var(--font-num);
-  font-size: 9px;
+  font-size: 11px;
   fill: var(--c-text-muted);
   text-anchor: end;
   dominant-baseline: middle;
 }
 .lc-x-label {
   font-family: var(--font-num);
-  font-size: 9px;
+  font-size: 11px;
   fill: var(--c-text-muted);
   text-anchor: middle;
 }

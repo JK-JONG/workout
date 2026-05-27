@@ -9,7 +9,7 @@ import { useJsonl, type ImportResult } from '@/composables/useJsonl'
 const profile = useProfileStore()
 const log = useLogStore()
 const catalog = useCatalogStore()
-const { activeProfile, knownProfiles } = storeToRefs(profile)
+const { activeProfile } = storeToRefs(profile)
 const { workouts, meals, body } = storeToRefs(log)
 const { customFoods } = storeToRefs(catalog)
 
@@ -29,11 +29,6 @@ const stats = computed(() => ({
 const newProfileName = ref('')
 const newProfileError = ref('')
 
-function switchProfile(name: string) {
-  if (name === activeProfile.value) return
-  profile.setProfile(name)
-}
-
 function startNewProfile() {
   newProfileError.value = ''
   const n = newProfileName.value.trim()
@@ -51,11 +46,6 @@ function logout() {
 function lockApp() {
   profile.clearProfile()
   profile.lock()
-}
-
-function confirmRemoveProfile(name: string) {
-  if (!confirm(`'${name}' 프로필의 모든 데이터를 삭제합니다. 되돌릴 수 없습니다. 진행할까요?`)) return
-  profile.removeProfile(name)
 }
 
 function confirmClearAll() {
@@ -117,21 +107,12 @@ function removeCustomFood(id: string) {
       </div>
     </section>
 
-    <!-- 프로필 관리 -->
+    <!-- 새 프로필 만들기 -->
     <section class="card">
       <div class="card-head">
-        <h2 class="card-title">프로필 관리</h2>
-        <span class="muted small">{{ knownProfiles.length }}개</span>
+        <h2 class="card-title">새 프로필</h2>
       </div>
-      <ul class="profile-list">
-        <li v-for="n in knownProfiles" :key="n" class="profile-item" :class="{ active: n === activeProfile }">
-          <span class="profile-pname">{{ n }}</span>
-          <span v-if="n === activeProfile" class="tag tag-soft">사용 중</span>
-          <span class="grow"></span>
-          <button v-if="n !== activeProfile" class="btn-mini" @click="switchProfile(n)">전환</button>
-          <button class="btn-mini btn-mini-warn" @click="confirmRemoveProfile(n)">삭제</button>
-        </li>
-      </ul>
+      <p class="hint">다른 이름으로 새 프로필을 만들면 비어있는 상태로 시작됩니다. 현재 데이터는 사라지지 않고 보존돼요.</p>
       <div class="new-profile">
         <input
           class="input"
