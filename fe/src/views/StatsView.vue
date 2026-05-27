@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useLocalStorage } from '@vueuse/core'
 import { useCatalogStore } from '@/stores/catalog'
 import { useAllProfilesData, colorForProfile } from '@/composables/useAllProfilesData'
+import { useProfileStore } from '@/stores/profile'
 import MiniHeatmap from '@/components/MiniHeatmap.vue'
 import LineChart from '@/components/LineChart.vue'
 
@@ -10,7 +12,32 @@ const catalog = useCatalogStore()
 const { exercises } = storeToRefs(catalog)
 
 // 모든 프로필 데이터 합산 (잔디·평균·PR 공용 / 신체 추이는 프로필별 분리)
-const { allWorkouts, allMeals, allBody } = useAllProfilesData()
+const {
+  allWorkouts: rawWorkouts,
+  allMeals: rawMeals,
+  allBody: rawBody,
+} = useAllProfilesData()
+
+// ── 프로필 탭 ('' = 전체 합산) ──
+const profileStore = useProfileStore()
+const selectedProfile = useLocalStorage<string>('wt.statsProfile', '')
+
+const tabProfiles = computed<string[]>(() => {
+  const set = new Set<string>(profileStore.knownProfiles)
+  for (const w of rawWorkouts.value) set.add(w.profile)
+  for (const m of rawMeals.value) set.add(m.profile)
+  for (const b of rawBody.value) set.add(b.profile)
+  return Array.from(set).filter(Boolean).sort()
+})
+
+const isAll = computed(() => selectedProfile.value === '')
+function passes(p: string): boolean {
+  return isAll.value || p === selectedProfile.value
+}
+
+const allWorkouts = computed(() => rawWorkouts.value.filter(w => passes(w.profile)))
+const allMeals = computed(() => rawMeals.value.filter(m => passes(m.profile)))
+const allBody = computed(() => rawBody.value.filter(b => passes(b.profile)))
 
 const outColors = ['#ebedf0', '#c8e6c9', '#9be9a8', '#40c463', '#216e39']
 const inColors = ['#ebedf0', '#fde4cf', '#fcc89b', '#f59e0b', '#b45309']
@@ -190,10 +217,33 @@ const totalCounts = computed(() => ({
 
 <template>
   <div class="stats">
+    <!-- 프로필 탭 -->
+    <section v-if="tabProfiles.length" class="profile-tabs">
+      <button
+        class="ptab"
+        :class="{ active: isAll }"
+        @click="selectedProfile = ''"
+      >
+        <span class="ptab-dot ptab-dot-all"></span>
+        <span>전체</span>
+        <span class="ptab-count">{{ tabProfiles.length }}명</span>
+      </button>
+      <button
+        v-for="p in tabProfiles"
+        :key="p"
+        class="ptab"
+        :class="{ active: selectedProfile === p }"
+        @click="selectedProfile = p"
+      >
+        <span class="ptab-dot" :style="{ background: colorForProfile(p) }"></span>
+        <span>{{ p }}</span>
+      </button>
+    </section>
+
     <!-- 요약 -->
     <section class="kpi">
       <div class="kpi-box">
-        <div class="kpi-label">최근 30일 · 합산</div>
+        <div class="kpi-label">최근 30일{{ isAll ? ' · 합산' : ` · ${selectedProfile}` }}</div>
         <div class="kpi-row">
           <span class="kpi-mini">운동 <span class="num accent">{{ stats30.days }}</span>일</span>
           <span class="kpi-mini">평균 소모 <span class="num">{{ stats30.avgOut }}</span></span>
@@ -201,7 +251,7 @@ const totalCounts = computed(() => ({
         </div>
       </div>
       <div class="kpi-box">
-        <div class="kpi-label">최근 90일 · 합산</div>
+        <div class="kpi-label">최근 90일{{ isAll ? ' · 합산' : ` · ${selectedProfile}` }}</div>
         <div class="kpi-row">
           <span class="kpi-mini">운동 <span class="num accent">{{ stats90.days }}</span>일</span>
           <span class="kpi-mini">평균 소모 <span class="num">{{ stats90.avgOut }}</span></span>
@@ -218,8 +268,8 @@ const totalCounts = computed(() => ({
       </div>
     </section>
 
-    <!-- 프로필별 활동 (최근 30일) -->
-    <section v-if="perProfileActivity.length" class="card">
+    <!-- 프로필별 활동 (최근 30일) — 전체 탭에서만 -->
+    <section v-if="isAll && perProfileActivity.length" class="card">
       <div class="card-head">
         <h2 class="card-title">사람별 활동 · 최근 30일</h2>
       </div>
@@ -235,19 +285,19 @@ const totalCounts = computed(() => ({
     <!-- 잔디 -->
     <section class="card">
       <div class="card-head">
-        <h2 class="card-title">활동 잔디 · 1년 (모든 사람)</h2>
+        <h2 class="card-title">활동 잔디 · 1년 ({{ isAll ? '모든 사람 합산' : selectedProfile }})</h2>
       </div>
       <div class="heatmap-grid">
         <div>
-          <div class="heatmap-label muted small">운동 소모 (kcal · 합산)</div>
+          <div class="heatmap-label muted small">운동 소모 (kcal{{ isAll ? ' · 합산' : '' }})</div>
           <MiniHeatmap :data="dailyOutMap" :weeks="52" :max="500" :colors="outColors" unit="kcal" />
         </div>
         <div>
-          <div class="heatmap-label muted small">음식 섭취 (kcal · 합산)</div>
+          <div class="heatmap-label muted small">음식 섭취 (kcal{{ isAll ? ' · 합산' : '' }})</div>
           <MiniHeatmap :data="dailyInMap" :weeks="52" :max="2500" :colors="inColors" unit="kcal" />
         </div>
         <div>
-          <div class="heatmap-label muted small">운동 종목 수 (합산)</div>
+          <div class="heatmap-label muted small">운동 종목 수{{ isAll ? ' · 합산' : '' }}</div>
           <MiniHeatmap :data="dailyWorkoutCount" :weeks="52" :max="6" :colors="outColors" unit="회" />
         </div>
       </div>
@@ -256,7 +306,7 @@ const totalCounts = computed(() => ({
     <!-- 신체 추이 (프로필별 색상) -->
     <section class="card">
       <div class="card-head">
-        <h2 class="card-title">신체 추이 · 최근 90일 (사람별 색)</h2>
+        <h2 class="card-title">신체 추이 · 최근 90일{{ isAll ? ' (사람별 색)' : ` (${selectedProfile})` }}</h2>
       </div>
       <div v-if="bodyChart.hasAny" class="charts">
         <div class="chart-block">
@@ -278,7 +328,7 @@ const totalCounts = computed(() => ({
     <!-- 칼로리 추이 -->
     <section class="card">
       <div class="card-head">
-        <h2 class="card-title">칼로리 추이 · 최근 30일 (합산)</h2>
+        <h2 class="card-title">칼로리 추이 · 최근 30일 ({{ isAll ? '합산' : selectedProfile }})</h2>
       </div>
       <div class="chart-block">
         <LineChart :series="kcalSeries" :x-labels="kcalChart.xLabels" unit="kcal" />
@@ -288,7 +338,7 @@ const totalCounts = computed(() => ({
     <!-- 부위별 빈도 -->
     <section class="card">
       <div class="card-head">
-        <h2 class="card-title">부위별 빈도 · 최근 90일 (합산)</h2>
+        <h2 class="card-title">부위별 빈도 · 최근 90일 ({{ isAll ? '합산' : selectedProfile }})</h2>
       </div>
       <ul v-if="categoryFreq.length" class="bars">
         <li v-for="row in categoryFreq" :key="row.cat" class="bar-row">
@@ -305,7 +355,7 @@ const totalCounts = computed(() => ({
     <!-- PR -->
     <section class="card">
       <div class="card-head">
-        <h2 class="card-title">최고 무게 기록 · Top 10 (사람별)</h2>
+        <h2 class="card-title">최고 무게 기록 · Top 10{{ isAll ? ' (사람별)' : ` (${selectedProfile})` }}</h2>
       </div>
       <ul v-if="personalBests.length" class="pr-list">
         <li v-for="(pb, i) in personalBests" :key="pb.profile + pb.name + i" class="pr-row">
@@ -323,6 +373,49 @@ const totalCounts = computed(() => ({
 
 <style scoped>
 .stats { display: grid; gap: 14px; }
+
+.profile-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+}
+.ptab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--c-text-soft);
+  background: transparent;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.ptab:hover { color: var(--c-text); background: var(--c-surface); }
+.ptab.active {
+  background: var(--c-surface);
+  color: var(--c-accent-ink);
+  box-shadow: var(--shadow-xs);
+}
+.ptab-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--c-text-muted);
+}
+.ptab-dot-all {
+  background: linear-gradient(135deg, #2f7d4a 0%, #b45309 50%, #1d4ed8 100%);
+}
+.ptab-count {
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  font-weight: 400;
+}
 .card { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-lg); padding: 14px 16px; box-shadow: var(--shadow-xs); }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .card-title { font-size: var(--fs-md); font-weight: 600; color: var(--c-text-soft); }

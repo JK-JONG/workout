@@ -108,7 +108,34 @@ export const useLogStore = defineStore('log', () => {
     return [...body.value].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)[0]
   })
 
+  // 선택된 날짜에 신체 기록이 없고 과거에 기록이 있으면 그 날짜로 자동 복제.
+  // 운동 kcal 계산용 기준 체중도 함께 갱신.
+  // 같은 날짜에 두 번 복제되지 않도록 호출부에서 한 번만 부르면 된다.
+  function carryoverBodyTo(date: string): boolean {
+    const exists = body.value.some(b => b.date === date)
+    if (exists) {
+      // 이미 그날 기록이 있으면 weightKg만 운동 기준에 반영
+      const today = body.value.find(b => b.date === date)
+      if (today) weightKg.value = today.weightKg
+      return false
+    }
+    const last = latestBody.value
+    if (!last) return false
+    body.value = [
+      ...body.value,
+      {
+        ...last,
+        id: crypto.randomUUID(),
+        date,
+        createdAt: Date.now(),
+      },
+    ]
+    weightKg.value = last.weightKg
+    return true
+  }
+
   return {
+    carryoverBodyTo,
     weightKg,
     meals, workouts, body, selectedDate,
     mealsOfDate, workoutsOfDate, bodyOfDate,

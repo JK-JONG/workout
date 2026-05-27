@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useLocalStorage } from '@vueuse/core'
 import { useProfileStore } from '@/stores/profile'
 import { useLogStore } from '@/stores/log'
 import { useCatalogStore } from '@/stores/catalog'
 import { useJsonl, type ImportResult } from '@/composables/useJsonl'
+
+const ALLOWED_PROFILE = '박종권'
+const ADMIN_PW = '45121006'
 
 const profile = useProfileStore()
 const log = useLogStore()
@@ -19,6 +23,28 @@ const importMode = ref<'merge' | 'replace'>('merge')
 const importResult = ref<ImportResult | null>(null)
 const importError = ref('')
 
+// ── 관리자 가드 ─────────────────────────────────────────
+const adminUnlocked = useLocalStorage<boolean>('wt.adminUnlocked', false)
+const isOwner = computed(() => activeProfile.value === ALLOWED_PROFILE)
+const accessGranted = computed(() => isOwner.value || adminUnlocked.value)
+
+const adminPwInput = ref('')
+const adminPwError = ref('')
+function submitAdminPw() {
+  adminPwError.value = ''
+  if (adminPwInput.value === ADMIN_PW) {
+    adminUnlocked.value = true
+    adminPwInput.value = ''
+  } else {
+    adminPwError.value = '비밀번호가 맞지 않습니다.'
+    adminPwInput.value = ''
+  }
+}
+function lockAdmin() {
+  adminUnlocked.value = false
+}
+
+// ── 통계 ────────────────────────────────────────────────
 const stats = computed(() => ({
   workouts: workouts.value.length,
   meals: meals.value.length,
@@ -26,9 +52,9 @@ const stats = computed(() => ({
   customFoods: customFoods.value.length,
 }))
 
+// ── 새 프로필 ───────────────────────────────────────────
 const newProfileName = ref('')
 const newProfileError = ref('')
-
 function startNewProfile() {
   newProfileError.value = ''
   const n = newProfileName.value.trim()
@@ -40,13 +66,8 @@ function startNewProfile() {
   newProfileName.value = ''
 }
 
-function logout() {
-  profile.clearProfile()
-}
-function lockApp() {
-  profile.clearProfile()
-  profile.lock()
-}
+function logout() { profile.clearProfile() }
+function lockApp() { profile.clearProfile(); profile.lock() }
 
 function confirmClearAll() {
   if (!confirm(`현재 프로필(${activeProfile.value})의 모든 기록을 삭제합니다. 되돌릴 수 없습니다. 진행할까요?`)) return
@@ -56,9 +77,7 @@ function confirmClearAll() {
   catalog.customFoods = []
 }
 
-function triggerImport() {
-  fileInput.value?.click()
-}
+function triggerImport() { fileInput.value?.click() }
 async function onFile(e: Event) {
   importResult.value = null
   importError.value = ''
@@ -86,69 +105,154 @@ function removeCustomFood(id: string) {
 </script>
 
 <template>
-  <div class="settings">
-    <!-- 현재 프로필 요약 -->
+  <!-- 관리자 가드 ──────────────────────────────────────── -->
+  <div v-if="!accessGranted" class="locked">
+    <div class="locked-card">
+      <div class="locked-icon">🔒</div>
+      <h1 class="locked-title">설정은 관리자만 접근할 수 있습니다</h1>
+      <p class="locked-sub">
+        <b>{{ ALLOWED_PROFILE }}</b> 프로필이 아니거나 처음 접근하는 경우,
+        관리자 비밀번호를 입력해주세요.
+      </p>
+      <form class="locked-form" @submit.prevent="submitAdminPw">
+        <input
+          class="locked-input"
+          type="password"
+          v-model="adminPwInput"
+          inputmode="numeric"
+          autocomplete="off"
+          autofocus
+          placeholder="관리자 비밀번호"
+        />
+        <button class="locked-btn" type="submit">확인</button>
+      </form>
+      <div v-if="adminPwError" class="locked-err">{{ adminPwError }}</div>
+      <div class="locked-foot muted small">
+        현재 프로필: <b>{{ activeProfile || '(없음)' }}</b>
+      </div>
+    </div>
+  </div>
+
+  <!-- 본 설정 ────────────────────────────────────────────── -->
+  <div v-else class="settings">
+    <!-- 페이지 헤더 -->
+    <header class="page-head">
+      <div>
+        <div class="page-eyebrow">SETTINGS</div>
+        <h1 class="page-title">설정</h1>
+        <p class="page-sub muted">프로필 · 데이터 백업 · 관리자 도구</p>
+      </div>
+      <div class="page-head-tools">
+        <span v-if="isOwner" class="badge owner">관리자</span>
+        <span v-else class="badge admin">관리자 해제됨</span>
+        <button v-if="!isOwner" class="btn btn-ghost btn-sm" @click="lockAdmin">관리자 잠금</button>
+      </div>
+    </header>
+
+    <!-- 현재 프로필 -->
     <section class="card">
       <div class="card-head">
         <h2 class="card-title">현재 프로필</h2>
       </div>
-      <div class="profile-row">
-        <div class="profile-name">{{ activeProfile }}</div>
-        <div class="profile-stats">
-          <span class="muted small">운동 <span class="num">{{ stats.workouts }}</span></span>
-          <span class="muted small">식단 <span class="num">{{ stats.meals }}</span></span>
-          <span class="muted small">신체 <span class="num">{{ stats.body }}</span></span>
-          <span class="muted small">내 음식 <span class="num">{{ stats.customFoods }}</span></span>
+      <div class="profile-block">
+        <div class="profile-id">
+          <div class="profile-avatar">{{ activeProfile.charAt(0) || '?' }}</div>
+          <div class="profile-meta">
+            <div class="profile-name">{{ activeProfile }}</div>
+            <div class="profile-tag muted small">활성 프로필</div>
+          </div>
+        </div>
+        <div class="profile-counts">
+          <div class="count">
+            <div class="count-label">운동</div>
+            <div class="count-value num">{{ stats.workouts }}</div>
+          </div>
+          <div class="count">
+            <div class="count-label">식단</div>
+            <div class="count-value num">{{ stats.meals }}</div>
+          </div>
+          <div class="count">
+            <div class="count-label">신체</div>
+            <div class="count-value num">{{ stats.body }}</div>
+          </div>
+          <div class="count">
+            <div class="count-label">내 음식</div>
+            <div class="count-value num">{{ stats.customFoods }}</div>
+          </div>
         </div>
       </div>
       <div class="actions">
         <button class="btn btn-ghost" @click="logout">프로필 전환</button>
-        <button class="btn btn-ghost" @click="lockApp">잠금</button>
+        <button class="btn btn-ghost" @click="lockApp">전체 잠금</button>
       </div>
     </section>
 
-    <!-- 새 프로필 만들기 -->
+    <!-- 새 프로필 -->
     <section class="card">
       <div class="card-head">
-        <h2 class="card-title">새 프로필</h2>
+        <h2 class="card-title">새 프로필 만들기</h2>
+        <span class="muted small">현재 데이터는 보존됩니다</span>
       </div>
-      <p class="hint">다른 이름으로 새 프로필을 만들면 비어있는 상태로 시작됩니다. 현재 데이터는 사라지지 않고 보존돼요.</p>
-      <div class="new-profile">
+      <p class="hint">다른 이름으로 시작하면 빈 상태의 새 프로필이 만들어집니다. 가족·친구가 같은 기기를 써도 데이터가 섞이지 않습니다.</p>
+      <form class="new-profile" @submit.prevent="startNewProfile">
         <input
           class="input"
           type="text"
           v-model="newProfileName"
           placeholder="새 프로필 이름"
           maxlength="24"
-          @keyup.enter="startNewProfile"
         />
-        <button class="btn btn-primary" @click="startNewProfile">새 프로필 시작</button>
-      </div>
+        <button class="btn btn-primary" type="submit">새 프로필 시작</button>
+      </form>
       <div v-if="newProfileError" class="err">{{ newProfileError }}</div>
     </section>
 
     <!-- 백업·복원 -->
     <section class="card">
       <div class="card-head">
-        <h2 class="card-title">백업 · 복원 (JSONL)</h2>
+        <h2 class="card-title">백업 · 복원</h2>
+        <span class="muted small">JSONL 형식</span>
       </div>
       <p class="hint">
-        브라우저를 비우거나 다른 기기로 옮길 때는 <b>내보내기</b>로 `.jsonl` 파일을 받아두세요.
-        다른 기기에서 같은 사이트를 열고 <b>가져오기</b>하면 그대로 복원됩니다.
+        브라우저 데이터를 비우거나 다른 기기로 옮길 때는 <b>내보내기</b>로 <code>.jsonl</code> 파일을 받아두세요.
+        다른 기기에서도 같은 사이트를 열고 <b>가져오기</b>하면 그대로 복원됩니다.
       </p>
-      <div class="actions">
-        <button class="btn btn-primary" @click="jsonl.downloadJsonl()">내보내기 (.jsonl)</button>
 
-        <label class="mode-toggle">
-          <input type="radio" v-model="importMode" value="merge" />
-          <span>병합 (중복 ID는 건너뛰기)</span>
-        </label>
-        <label class="mode-toggle">
-          <input type="radio" v-model="importMode" value="replace" />
-          <span>덮어쓰기 (현재 프로필 비운 뒤 적용)</span>
-        </label>
-        <button class="btn btn-ghost" @click="triggerImport">파일 선택…</button>
-        <input ref="fileInput" type="file" accept=".jsonl,.ndjson,application/x-ndjson,application/json" hidden @change="onFile" />
+      <div class="block-row">
+        <button class="btn btn-primary" @click="jsonl.downloadJsonl()">
+          <span>내보내기</span>
+          <span class="btn-suffix">.jsonl</span>
+        </button>
+      </div>
+
+      <div class="import-block">
+        <div class="block-label">가져오기 모드</div>
+        <div class="radio-grid">
+          <label class="radio-card" :class="{ active: importMode === 'merge' }">
+            <input type="radio" v-model="importMode" value="merge" />
+            <div class="radio-body">
+              <div class="radio-title">병합</div>
+              <div class="radio-desc">중복 ID는 건너뜁니다. 안전한 기본값.</div>
+            </div>
+          </label>
+          <label class="radio-card warn" :class="{ active: importMode === 'replace' }">
+            <input type="radio" v-model="importMode" value="replace" />
+            <div class="radio-body">
+              <div class="radio-title">덮어쓰기</div>
+              <div class="radio-desc">현재 프로필을 비운 뒤 파일 내용으로 교체합니다.</div>
+            </div>
+          </label>
+        </div>
+        <div class="block-row">
+          <button class="btn btn-ghost" @click="triggerImport">파일 선택…</button>
+          <input
+            ref="fileInput"
+            type="file"
+            accept=".jsonl,.ndjson,application/x-ndjson,application/json"
+            hidden
+            @change="onFile"
+          />
+        </div>
       </div>
 
       <div v-if="importResult" class="import-result">
@@ -156,11 +260,11 @@ function removeCustomFood(id: string) {
           파일 출처 프로필: <b>{{ importResult.fromProfile }}</b>
           {{ importResult.fromProfile !== activeProfile ? ` (현재: ${activeProfile})` : '' }}
         </div>
-        <div>
-          추가 — 운동 <span class="num accent">{{ importResult.added.workouts }}</span>,
-          식단 <span class="num accent">{{ importResult.added.meals }}</span>,
-          신체 <span class="num accent">{{ importResult.added.body }}</span>,
-          내 음식 <span class="num accent">{{ importResult.added.customFoods }}</span>
+        <div class="result-counts">
+          <span>운동 <b class="num accent">+{{ importResult.added.workouts }}</b></span>
+          <span>식단 <b class="num accent">+{{ importResult.added.meals }}</b></span>
+          <span>신체 <b class="num accent">+{{ importResult.added.body }}</b></span>
+          <span>내 음식 <b class="num accent">+{{ importResult.added.customFoods }}</b></span>
         </div>
         <div class="muted small">
           중복 건너뜀 {{ importResult.skipped }}건 · 무효 {{ importResult.invalid }}건
@@ -177,9 +281,11 @@ function removeCustomFood(id: string) {
       </div>
       <ul class="food-list">
         <li v-for="f in customFoods" :key="f.id" class="food-row">
-          <div>
+          <div class="food-main">
             <div class="food-name">{{ f.name }}</div>
-            <div class="muted small num">{{ f.kcal }} kcal · P{{ f.protein }} · C{{ f.carbs }} · F{{ f.fat }} · {{ f.category }}</div>
+            <div class="food-meta muted small num">
+              {{ f.kcal }} kcal · P {{ f.protein }} · C {{ f.carbs }} · F {{ f.fat }} · {{ f.category }}
+            </div>
           </div>
           <button class="icon-btn" @click="removeCustomFood(f.id)" aria-label="삭제">×</button>
         </li>
@@ -195,88 +301,307 @@ function removeCustomFood(id: string) {
         현재 프로필의 모든 운동·식단·신체 기록과 내가 등록한 음식이 영구히 삭제됩니다.
         실행 전 반드시 백업하세요.
       </p>
-      <button class="btn btn-danger" @click="confirmClearAll">현재 프로필 데이터 전부 삭제</button>
+      <button class="btn btn-danger" @click="confirmClearAll">
+        현재 프로필 데이터 전부 삭제
+      </button>
     </section>
 
     <footer class="foot muted small">
-      비밀번호: 알려받은 값 · 잠그면 다음 방문 시 재입력 필요.
+      게이트 비밀번호: 별도 안내 · 잠그면 다음 방문 시 재입력 필요.
     </footer>
   </div>
 </template>
 
 <style scoped>
-.settings { display: grid; gap: 14px; max-width: 760px; }
-.card { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-lg); padding: 14px 16px; box-shadow: var(--shadow-xs); }
-.card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-.card-title { font-size: var(--fs-md); font-weight: 600; color: var(--c-text-soft); }
+/* ─── 페이지 ─── */
+.settings { display: grid; gap: 14px; max-width: 760px; padding-bottom: 24px; }
+
+.page-head {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
+  padding: 4px 2px 14px;
+  border-bottom: 1px solid var(--c-border);
+  margin-bottom: 4px;
+}
+.page-eyebrow {
+  font-family: var(--font-num);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--c-text-muted);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.page-title {
+  font-size: var(--fs-3xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--c-text);
+  line-height: 1.1;
+}
+.page-sub { font-size: var(--fs-sm); margin-top: 4px; }
+.page-head-tools { display: inline-flex; align-items: center; gap: 8px; }
+.badge {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+.badge.owner { background: var(--c-accent-soft); color: var(--c-accent-ink); }
+.badge.admin { background: #fde9c8; color: #92400e; }
+
+/* ─── 카드 ─── */
+.card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px 14px;
+  box-shadow: var(--shadow-xs);
+}
+.card.danger { border-color: #f3c5c5; background: #fff8f7; }
+.card-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 10px; margin-bottom: 10px;
+  padding-bottom: 8px; border-bottom: 1px dashed var(--c-border);
+}
+.card-title { font-size: var(--fs-md); font-weight: 700; color: var(--c-text); letter-spacing: -0.005em; }
+.danger-title { color: var(--c-danger); }
 .muted { color: var(--c-text-muted); }
 .small { font-size: var(--fs-xs); font-weight: normal; }
 .accent { color: var(--c-accent); }
-.grow { flex: 1; }
-.hint { font-size: var(--fs-sm); color: var(--c-text-soft); line-height: 1.5; margin-bottom: 10px; }
-.err { font-size: var(--fs-sm); color: var(--c-danger); margin-top: 6px; }
+.err { font-size: var(--fs-sm); color: var(--c-danger); margin-top: 8px; }
+.hint { font-size: var(--fs-sm); color: var(--c-text-soft); line-height: 1.6; margin-bottom: 12px; }
 
-.profile-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
-.profile-name { font-size: var(--fs-2xl); font-weight: 600; }
-.profile-stats { display: flex; gap: 10px; flex-wrap: wrap; }
-.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* ─── 현재 프로필 블록 ─── */
+.profile-block {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  align-items: center;
+  padding: 4px 0 12px;
+}
+.profile-id { display: flex; align-items: center; gap: 12px; }
+.profile-avatar {
+  width: 48px; height: 48px;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--c-accent-soft), var(--c-accent));
+  color: #fff;
+  font-size: var(--fs-xl); font-weight: 700;
+  border-radius: 50%;
+  box-shadow: var(--shadow-xs);
+}
+.profile-meta { display: flex; flex-direction: column; gap: 2px; }
+.profile-name { font-size: var(--fs-xl); font-weight: 700; letter-spacing: -0.01em; }
+.profile-tag { letter-spacing: 0.03em; text-transform: uppercase; }
+.profile-counts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.count {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  text-align: left;
+}
+.count-label {
+  font-size: 10px;
+  color: var(--c-text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.count-value { font-size: var(--fs-xl); font-weight: 700; line-height: 1.2; }
+@media (max-width: 640px) {
+  .profile-block { grid-template-columns: 1fr; }
+  .profile-counts { grid-template-columns: repeat(4, 1fr); }
+}
 
-.profile-list { display: grid; gap: 4px; margin-bottom: 12px; }
-.profile-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--c-border); border-radius: var(--radius-md); background: var(--c-surface); }
-.profile-item.active { background: var(--c-accent-soft); border-color: var(--c-accent); }
-.profile-pname { font-size: var(--fs-md); color: var(--c-text); font-weight: 500; }
-.new-profile { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; border-top: 1px dashed var(--c-border); }
 
-.input { height: 36px; padding: 0 10px; border: 1px solid var(--c-border-strong); border-radius: var(--radius-md); background: var(--c-surface); font-size: var(--fs-md); transition: border 0.15s, box-shadow 0.15s; }
+/* ─── 새 프로필 ─── */
+.new-profile { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.input {
+  height: 38px; padding: 0 12px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--c-surface);
+  font-size: var(--fs-md);
+  transition: border 0.15s, box-shadow 0.15s;
+}
 .input:focus { border-color: var(--c-accent); box-shadow: 0 0 0 3px var(--c-accent-soft); outline: none; }
 
-.tag { display: inline-block; padding: 1px 6px; font-size: var(--fs-xs); border: 1px solid var(--c-border-strong); border-radius: var(--radius-xs); color: var(--c-text-soft); }
-.tag-soft { background: var(--c-accent-soft); border-color: var(--c-accent-soft); color: var(--c-accent-ink); }
+/* ─── 백업·복원 ─── */
+.block-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.block-label {
+  font-size: var(--fs-xs); color: var(--c-text-muted);
+  letter-spacing: 0.04em; text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.btn-suffix { margin-left: 6px; font-family: var(--font-num); font-size: var(--fs-xs); opacity: 0.85; }
 
-.btn { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 14px; font-size: var(--fs-sm); font-weight: 500; border-radius: var(--radius-md); transition: background 0.15s, color 0.15s, border 0.15s; }
-.btn-primary { background: var(--c-accent); color: #fff; box-shadow: var(--shadow-xs); }
-.btn-primary:hover { background: var(--c-accent-ink); }
-.btn-ghost { background: transparent; color: var(--c-text-soft); border: 1px solid var(--c-border-strong); }
-.btn-ghost:hover { background: var(--c-surface-2); color: var(--c-text); }
-.btn-danger { background: var(--c-danger); color: #fff; }
-.btn-danger:hover { background: #8c1414; }
-.btn-mini { height: 26px; padding: 0 10px; font-size: var(--fs-xs); background: var(--c-surface); color: var(--c-accent-ink); border: 1px solid var(--c-accent-soft); border-radius: var(--radius-sm); transition: background 0.15s; }
-.btn-mini:hover { background: var(--c-accent-soft); }
-.btn-mini-warn { color: var(--c-danger); border-color: #f3c5c5; }
-.btn-mini-warn:hover { background: #fdecec; }
-
-.mode-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-sm); color: var(--c-text-soft); }
-.mode-toggle input[type='radio'] {
+.import-block {
+  margin-top: 6px;
+  padding: 12px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+}
+.radio-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+@media (max-width: 540px) { .radio-grid { grid-template-columns: 1fr; } }
+.radio-card {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 12px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border 0.15s, background 0.15s;
+}
+.radio-card:hover { border-color: var(--c-accent-soft); }
+.radio-card.active {
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft);
+}
+.radio-card.warn.active {
+  border-color: var(--c-warn);
+  background: #fdeed7;
+}
+.radio-card input[type='radio'] {
+  margin-top: 3px;
   width: 14px; height: 14px;
   border: 1.5px solid var(--c-border-strong); border-radius: 50%;
   appearance: none; -webkit-appearance: none;
-  background: var(--c-surface); cursor: pointer;
+  background: var(--c-surface);
   display: grid; place-items: center;
+  flex-shrink: 0;
 }
-.mode-toggle input[type='radio']:checked {
+.radio-card.active input[type='radio'] {
   border-color: var(--c-accent);
   background: radial-gradient(circle, var(--c-accent) 0 4px, var(--c-surface) 5px 100%);
 }
+.radio-card.warn.active input[type='radio'] {
+  border-color: var(--c-warn);
+  background: radial-gradient(circle, var(--c-warn) 0 4px, var(--c-surface) 5px 100%);
+}
+.radio-body { display: flex; flex-direction: column; gap: 2px; }
+.radio-title { font-size: var(--fs-sm); font-weight: 600; }
+.radio-desc { font-size: var(--fs-xs); color: var(--c-text-muted); line-height: 1.4; }
 
 .import-result {
   margin-top: 10px;
   padding: 10px 12px;
   background: var(--c-accent-soft);
-  border: 1px solid var(--c-accent);
   border-radius: var(--radius-md);
-  font-size: var(--fs-sm);
-  display: grid; gap: 4px;
+  display: grid; gap: 6px;
 }
+.result-counts { display: flex; flex-wrap: wrap; gap: 12px; font-size: var(--fs-sm); }
+.result-counts b { font-weight: 700; }
 
-.food-list { display: grid; gap: 2px; max-height: 320px; overflow-y: auto; }
-.food-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 8px; border-radius: var(--radius-sm); }
+/* ─── 음식 리스트 ─── */
+.food-list { display: grid; gap: 2px; }
+.food-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  transition: background 0.12s;
+}
 .food-row:hover { background: var(--c-surface-2); }
-.food-name { font-size: var(--fs-md); color: var(--c-text); }
-.icon-btn { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: var(--c-text-muted); border-radius: 50%; transition: background 0.15s; }
+.food-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.food-name { font-size: var(--fs-md); font-weight: 500; }
+.food-meta { letter-spacing: -0.005em; }
+
+/* ─── 버튼 공통 ─── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 38px; padding: 0 16px;
+  font-size: var(--fs-sm); font-weight: 600;
+  border-radius: var(--radius-md);
+  transition: background 0.15s, color 0.15s, border 0.15s, transform 0.05s;
+}
+.btn:active { transform: translateY(1px); }
+.btn-sm { height: 30px; padding: 0 12px; font-size: var(--fs-xs); }
+.btn-primary { background: var(--c-accent); color: #fff; box-shadow: var(--shadow-xs); }
+.btn-primary:hover { background: var(--c-accent-ink); }
+.btn-ghost { background: var(--c-surface); color: var(--c-text-soft); border: 1px solid var(--c-border-strong); }
+.btn-ghost:hover { background: var(--c-surface-2); color: var(--c-text); border-color: var(--c-text-muted); }
+.btn-danger { background: var(--c-danger); color: #fff; box-shadow: var(--shadow-xs); }
+.btn-danger:hover { background: #8c1414; }
+.icon-btn {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 18px; color: var(--c-text-muted);
+  border-radius: 50%;
+  transition: background 0.15s, color 0.15s;
+}
 .icon-btn:hover { background: var(--c-border); color: var(--c-text); }
 
-.danger { border-color: #f3c5c5; background: #fdf6f6; }
-.danger-title { color: var(--c-danger); }
+code {
+  font-family: var(--font-num);
+  font-size: 0.92em;
+  background: var(--c-chip);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
 
-.foot { text-align: center; padding: 8px; }
+.foot { padding: 8px 4px 0; text-align: center; }
+
+/* ─── 잠금 화면 ─── */
+.locked {
+  min-height: 60vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+}
+.locked-card {
+  width: 100%;
+  max-width: 380px;
+  padding: 32px 28px 24px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  text-align: center;
+  display: grid; gap: 10px;
+}
+.locked-icon { font-size: 36px; margin-bottom: 4px; }
+.locked-title {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--c-text);
+  letter-spacing: -0.005em;
+  line-height: 1.4;
+}
+.locked-sub {
+  font-size: var(--fs-sm);
+  color: var(--c-text-soft);
+  line-height: 1.55;
+  margin-bottom: 6px;
+}
+.locked-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  margin-top: 4px;
+}
+.locked-input {
+  height: 40px; padding: 0 12px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--c-surface);
+  font-size: var(--fs-md);
+  text-align: left;
+  font-family: var(--font-num);
+}
+.locked-input:focus { border-color: var(--c-accent); box-shadow: 0 0 0 3px var(--c-accent-soft); outline: none; }
+.locked-btn {
+  height: 40px; padding: 0 18px;
+  background: var(--c-accent);
+  color: #fff;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  transition: background 0.15s;
+}
+.locked-btn:hover { background: var(--c-accent-ink); }
+.locked-err { font-size: var(--fs-xs); color: var(--c-danger); margin-top: 2px; }
+.locked-foot { margin-top: 6px; }
 </style>

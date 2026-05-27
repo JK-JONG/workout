@@ -1,16 +1,28 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useProfileStore } from '@/stores/profile'
+import { useLogStore } from '@/stores/log'
+import BodyOnboardingForm from '@/components/BodyOnboardingForm.vue'
 
 const profile = useProfileStore()
+const log = useLogStore()
 const { unlocked, activeProfile, knownProfiles } = storeToRefs(profile)
+const { body } = storeToRefs(log)
 
-const stage = computed<'password' | 'profile' | 'done'>(() => {
+// 'body' 단계는 새 프로필을 생성한 직후에만 강제. 기존 프로필을 다시 골랐을 땐 데이터가
+// 이미 있을 수 있으므로 비어있어도 게이트를 막지 않고, RecordView 쪽 모달이 처리한다.
+const needsBodyForNewProfile = ref(false)
+
+const stage = computed<'password' | 'profile' | 'body' | 'done'>(() => {
   if (!unlocked.value) return 'password'
   if (!activeProfile.value) return 'profile'
+  if (needsBodyForNewProfile.value && body.value.length === 0) return 'body'
   return 'done'
 })
+
+// 프로필이 바뀌면 강제 모드 자동 해제
+watch(activeProfile, () => { needsBodyForNewProfile.value = false })
 
 const pwInput = ref('')
 const pwError = ref('')
@@ -29,9 +41,12 @@ function submitName() {
   const n = nameInput.value.trim()
   if (!n) { nameError.value = '이름을 입력해주세요.'; return }
   if (!profile.isValidName(n)) { nameError.value = '이름에 사용할 수 없는 문자가 포함되어 있습니다.'; return }
+  const isNew = !knownProfiles.value.includes(n)
+  needsBodyForNewProfile.value = isNew
   profile.setProfile(n)
 }
 function pickProfile(name: string) {
+  needsBodyForNewProfile.value = false
   profile.setProfile(name)
 }
 </script>
@@ -92,6 +107,22 @@ function pickProfile(name: string) {
           <button class="gate-btn" type="submit">시작</button>
         </form>
         <div v-if="nameError" class="gate-error">{{ nameError }}</div>
+      </div>
+
+      <!-- 신체 정보 입력 단계 (새 프로필) -->
+      <div v-else-if="stage === 'body'" class="gate-form">
+        <label class="gate-label">신체 정보</label>
+        <p class="gate-hint">
+          <b>{{ activeProfile }}</b> 님의 시작 신체 정보를 입력하세요. 운동 칼로리 계산 기준이 됩니다.
+          체지방·근육량은 나중에 추가해도 됩니다.
+        </p>
+        <BodyOnboardingForm
+          submit-label="시작하기"
+          skip-label="나중에 입력"
+          :show-skip="true"
+          @done="needsBodyForNewProfile = false"
+          @skip="needsBodyForNewProfile = false"
+        />
       </div>
     </div>
   </div>
