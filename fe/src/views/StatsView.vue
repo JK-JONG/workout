@@ -60,10 +60,30 @@ const inMaxLabel = computed(() =>
     : '절대량 기준',
 )
 
-// 잔디 hover 정보
+// 잔디 hover 정보 (셀 위에 뜨는 툴팁)
 interface HeatmapHover { date: string; value: number; future: boolean }
-const outHover = ref<HeatmapHover | null>(null)
-const inHover = ref<HeatmapHover | null>(null)
+interface HoverRect { top: number; left: number; width: number; height: number }
+type HoverKind = 'out' | 'in'
+const hoverCell = ref<HeatmapHover | null>(null)
+const hoverKind = ref<HoverKind>('out')
+const tooltipStyle = ref<{ top: string; left: string; transform: string }>({ top: '0', left: '0', transform: '' })
+
+function onHeatmapHover(kind: HoverKind, cell: HeatmapHover | null, rect: HoverRect | null) {
+  if (!cell || !rect) {
+    hoverCell.value = null
+    return
+  }
+  hoverKind.value = kind
+  hoverCell.value = cell
+  // 셀 바로 위에 가운데 정렬. viewport 위쪽으로 넘어가면 셀 아래로 띄움.
+  const tooltipH = 56
+  const above = rect.top - tooltipH - 8 >= 0
+  tooltipStyle.value = {
+    top: above ? `${rect.top - 8}px` : `${rect.top + rect.height + 8}px`,
+    left: `${rect.left + rect.width / 2}px`,
+    transform: above ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
+  }
+}
 
 function fmtDate(s: string): string {
   const d = new Date(s + 'T00:00:00')
@@ -72,17 +92,18 @@ function fmtDate(s: string): string {
   return `${d.getMonth() + 1}월 ${d.getDate()}일 (${wd})`
 }
 
-const outHoverEval = computed(() => {
-  const v = outHover.value?.value ?? 0
-  if (v === 0) return { label: '운동 없음', tone: 'neutral' }
-  if (v < 100) return { label: '가볍게', tone: 'ok' }
-  if (v < 250) return { label: '꾸준히', tone: 'ok' }
-  if (v < 500) return { label: '강하게', tone: 'good' }
-  return            { label: '고강도', tone: 'strong' }
-})
-
-const inHoverEval = computed(() => {
-  const v = inHover.value?.value ?? 0
+// 호버된 셀에 대한 평가 — 운동 / 식단 종류에 따라 다르게
+const hoverEval = computed<{ label: string; tone: string; pct: number }>(() => {
+  const v = hoverCell.value?.value ?? 0
+  if (hoverCell.value?.future) return { label: '미래 날짜', tone: 'neutral', pct: 0 }
+  if (hoverKind.value === 'out') {
+    if (v === 0) return { label: '운동 없음', tone: 'neutral', pct: 0 }
+    if (v < 100) return { label: '가볍게', tone: 'ok', pct: 0 }
+    if (v < 250) return { label: '꾸준히', tone: 'ok', pct: 0 }
+    if (v < 500) return { label: '강하게', tone: 'good', pct: 0 }
+    return            { label: '고강도', tone: 'strong', pct: 0 }
+  }
+  // 식단
   if (v === 0) return { label: '기록 없음', tone: 'neutral', pct: 0 }
   const rec = recommendedKcal.value
   if (rec <= 0) return { label: '평가 보류', tone: 'neutral', pct: 0 }
@@ -356,22 +377,8 @@ const totalCounts = computed(() => ({
             :max="500"
             :colors="outColors"
             unit="kcal"
-            @hover="outHover = $event"
+            @hover="(cell, rect) => onHeatmapHover('out', cell, rect)"
           />
-          <div class="heatmap-hover" :class="{ active: !!outHover }">
-            <template v-if="outHover && !outHover.future">
-              <span class="hh-date">{{ fmtDate(outHover.date) }}</span>
-              <span class="hh-val num">−{{ outHover.value.toLocaleString() }} kcal</span>
-              <span class="hh-tag" :class="`tone-${outHoverEval.tone}`">{{ outHoverEval.label }}</span>
-            </template>
-            <template v-else-if="outHover">
-              <span class="hh-date">{{ fmtDate(outHover.date) }}</span>
-              <span class="hh-tag tone-neutral">미래 날짜</span>
-            </template>
-            <template v-else>
-              <span class="hh-hint muted small">셀에 마우스를 올리면 상세 정보를 보여드립니다.</span>
-            </template>
-          </div>
         </div>
         <div>
           <div class="heatmap-label muted small">
@@ -384,27 +391,31 @@ const totalCounts = computed(() => ({
             :max="inMax"
             :colors="inColors"
             unit="kcal"
-            @hover="inHover = $event"
+            @hover="(cell, rect) => onHeatmapHover('in', cell, rect)"
           />
-          <div class="heatmap-hover" :class="{ active: !!inHover }">
-            <template v-if="inHover && !inHover.future">
-              <span class="hh-date">{{ fmtDate(inHover.date) }}</span>
-              <span class="hh-val num">+{{ inHover.value.toLocaleString() }} kcal</span>
-              <span class="hh-tag" :class="`tone-${inHoverEval.tone}`">
-                {{ inHoverEval.label }}<template v-if="inHoverEval.pct"> · {{ inHoverEval.pct }}%</template>
-              </span>
-            </template>
-            <template v-else-if="inHover">
-              <span class="hh-date">{{ fmtDate(inHover.date) }}</span>
-              <span class="hh-tag tone-neutral">미래 날짜</span>
-            </template>
-            <template v-else>
-              <span class="hh-hint muted small">셀에 마우스를 올리면 상세 정보를 보여드립니다.</span>
-            </template>
-          </div>
         </div>
       </div>
     </section>
+
+    <!-- 잔디 셀 hover 툴팁 (Teleport: body 위로 띄워서 컨테이너 overflow 영향 X) -->
+    <Teleport to="body">
+      <div
+        v-if="hoverCell && !hoverCell.future"
+        class="hm-tip"
+        :style="tooltipStyle"
+        role="tooltip"
+      >
+        <div class="hm-tip-date">{{ fmtDate(hoverCell.date) }}</div>
+        <div class="hm-tip-row">
+          <span class="hm-tip-val num">
+            {{ hoverKind === 'out' ? '−' : '+' }}{{ hoverCell.value.toLocaleString() }} kcal
+          </span>
+          <span class="hm-tip-tag" :class="`tone-${hoverEval.tone}`">
+            {{ hoverEval.label }}<template v-if="hoverEval.pct"> · {{ hoverEval.pct }}%</template>
+          </span>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- 지표 추이 (2×2 그리드: 몸무게 / 체지방률 / 골격근량 / 칼로리) -->
     <section class="card">
@@ -621,49 +632,6 @@ const totalCounts = computed(() => ({
 .heatmap-label { margin-bottom: 4px; }
 @media (max-width: 920px) { .heatmap-grid { grid-template-columns: 1fr; } }
 
-.heatmap-hover {
-  margin-top: 10px;
-  padding: 10px 12px;
-  background: var(--c-surface-2);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-md);
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  transition: border-color 0.15s, background 0.15s;
-}
-.heatmap-hover.active {
-  background: var(--c-surface);
-  border-color: var(--c-border-strong);
-}
-.hh-date {
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  color: var(--c-text);
-  font-family: var(--font-num);
-  letter-spacing: -0.005em;
-}
-.hh-val {
-  font-size: var(--fs-md);
-  font-weight: 700;
-  color: var(--c-accent-ink);
-}
-.hh-tag {
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-.hh-tag.tone-ok { background: var(--c-accent-soft); color: var(--c-accent-ink); }
-.hh-tag.tone-good { background: var(--c-accent-soft); color: var(--c-accent-ink); }
-.hh-tag.tone-strong { background: #fbe9d6; color: #b45309; }
-.hh-tag.tone-warn { background: #fbe9d6; color: #b45309; }
-.hh-tag.tone-over { background: #fde2e2; color: var(--c-danger); }
-.hh-tag.tone-neutral { background: var(--c-chip); color: var(--c-text-soft); }
-.hh-hint { font-size: var(--fs-xs); }
 
 .metric-grid {
   display: grid;
@@ -718,4 +686,60 @@ const totalCounts = computed(() => ({
 .pr-weight { font-size: var(--fs-sm); font-weight: 600; }
 .pr-date { white-space: nowrap; font-size: var(--fs-xs); }
 .empty { padding: 18px; text-align: center; color: var(--c-text-muted); font-size: var(--fs-sm); }
+</style>
+
+<!-- 잔디 툴팁은 Teleport로 body에 떠 있으니 scoped 밖 -->
+<style>
+.hm-tip {
+  position: fixed;
+  z-index: 1000;
+  padding: 8px 12px;
+  background: #1a1a18;
+  color: #fbfaf7;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(20, 18, 12, 0.28);
+  pointer-events: none;
+  min-width: 180px;
+  font-family: 'Pretendard', 'Apple SD Gothic Neo', system-ui, sans-serif;
+  animation: hm-tip-pop 0.1s ease-out;
+}
+@keyframes hm-tip-pop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.hm-tip-date {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b8b4ab;
+  letter-spacing: 0.02em;
+  margin-bottom: 4px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.hm-tip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.hm-tip-val {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fbfaf7;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: -0.01em;
+}
+.hm-tip-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.hm-tip-tag.tone-ok { background: #dff0e4; color: #1f5733; }
+.hm-tip-tag.tone-good { background: #c8e6cf; color: #1f5733; }
+.hm-tip-tag.tone-strong { background: #fbe9d6; color: #b45309; }
+.hm-tip-tag.tone-warn { background: #fbe9d6; color: #b45309; }
+.hm-tip-tag.tone-over { background: #fde2e2; color: #b91c1c; }
+.hm-tip-tag.tone-neutral { background: #3a3a36; color: #d8d4cb; }
 </style>

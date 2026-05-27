@@ -15,8 +15,20 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  hover: [cell: { date: string; value: number; future: boolean } | null]
+  hover: [
+    cell: { date: string; value: number; future: boolean } | null,
+    rect: { top: number; left: number; width: number; height: number } | null,
+  ]
 }>()
+
+function onEnter(ev: MouseEvent, cell: { date: string; value: number; future: boolean }) {
+  const t = ev.currentTarget as HTMLElement
+  const r = t.getBoundingClientRect()
+  emit('hover', cell, { top: r.top, left: r.left, width: r.width, height: r.height })
+}
+function onLeave() {
+  emit('hover', null, null)
+}
 
 function fmt(d: Date): string {
   const y = d.getFullYear()
@@ -97,8 +109,8 @@ const monthLabels = computed(() => {
             :class="{ future: grid[(col - 1) * 7 + (row - 1)].future }"
             :style="{ background: grid[(col - 1) * 7 + (row - 1)].future ? 'transparent' : colors[levelOf(grid[(col - 1) * 7 + (row - 1)].value)] }"
             :title="`${grid[(col - 1) * 7 + (row - 1)].date} · ${grid[(col - 1) * 7 + (row - 1)].value} ${unit}`"
-            @mouseenter="emit('hover', grid[(col - 1) * 7 + (row - 1)])"
-            @mouseleave="emit('hover', null)"
+            @mouseenter="onEnter($event, grid[(col - 1) * 7 + (row - 1)])"
+            @mouseleave="onLeave"
           ></div>
         </div>
       </div>
