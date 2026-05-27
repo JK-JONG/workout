@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useLocalStorage } from '@vueuse/core'
 import { useCatalogStore } from '@/stores/catalog'
@@ -59,6 +59,40 @@ const inMaxLabel = computed(() =>
     ? `권장 ${recommendedKcal.value.toLocaleString()} 기준`
     : '절대량 기준',
 )
+
+// 잔디 hover 정보
+interface HeatmapHover { date: string; value: number; future: boolean }
+const outHover = ref<HeatmapHover | null>(null)
+const inHover = ref<HeatmapHover | null>(null)
+
+function fmtDate(s: string): string {
+  const d = new Date(s + 'T00:00:00')
+  if (isNaN(d.getTime())) return s
+  const wd = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()]
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${wd})`
+}
+
+const outHoverEval = computed(() => {
+  const v = outHover.value?.value ?? 0
+  if (v === 0) return { label: '운동 없음', tone: 'neutral' }
+  if (v < 100) return { label: '가볍게', tone: 'ok' }
+  if (v < 250) return { label: '꾸준히', tone: 'ok' }
+  if (v < 500) return { label: '강하게', tone: 'good' }
+  return            { label: '고강도', tone: 'strong' }
+})
+
+const inHoverEval = computed(() => {
+  const v = inHover.value?.value ?? 0
+  if (v === 0) return { label: '기록 없음', tone: 'neutral', pct: 0 }
+  const rec = recommendedKcal.value
+  if (rec <= 0) return { label: '평가 보류', tone: 'neutral', pct: 0 }
+  const pct = Math.round((v / rec) * 100)
+  if (pct < 70)   return { label: '많이 부족', tone: 'warn', pct }
+  if (pct < 85)   return { label: '부족',     tone: 'neutral', pct }
+  if (pct <= 110) return { label: '적정',     tone: 'ok', pct }
+  if (pct <= 130) return { label: '초과',     tone: 'warn', pct }
+  return            { label: '많이 초과', tone: 'over', pct }
+})
 
 // ── 잔디용 합계 맵 ──
 const dailyOutMap = computed(() => {
@@ -316,14 +350,58 @@ const totalCounts = computed(() => ({
       <div class="heatmap-grid">
         <div>
           <div class="heatmap-label muted small">운동 소모 (kcal{{ isAll ? ' · 합산' : '' }})</div>
-          <MiniHeatmap :data="dailyOutMap" :weeks="26" :max="500" :colors="outColors" unit="kcal" />
+          <MiniHeatmap
+            :data="dailyOutMap"
+            :weeks="26"
+            :max="500"
+            :colors="outColors"
+            unit="kcal"
+            @hover="outHover = $event"
+          />
+          <div class="heatmap-hover" :class="{ active: !!outHover }">
+            <template v-if="outHover && !outHover.future">
+              <span class="hh-date">{{ fmtDate(outHover.date) }}</span>
+              <span class="hh-val num">−{{ outHover.value.toLocaleString() }} kcal</span>
+              <span class="hh-tag" :class="`tone-${outHoverEval.tone}`">{{ outHoverEval.label }}</span>
+            </template>
+            <template v-else-if="outHover">
+              <span class="hh-date">{{ fmtDate(outHover.date) }}</span>
+              <span class="hh-tag tone-neutral">미래 날짜</span>
+            </template>
+            <template v-else>
+              <span class="hh-hint muted small">셀에 마우스를 올리면 상세 정보를 보여드립니다.</span>
+            </template>
+          </div>
         </div>
         <div>
           <div class="heatmap-label muted small">
             음식 섭취 (kcal{{ isAll ? ' · 합산' : '' }})
             <span class="muted small" style="margin-left: 6px; opacity: 0.7;">· {{ inMaxLabel }}</span>
           </div>
-          <MiniHeatmap :data="dailyInMap" :weeks="26" :max="inMax" :colors="inColors" unit="kcal" />
+          <MiniHeatmap
+            :data="dailyInMap"
+            :weeks="26"
+            :max="inMax"
+            :colors="inColors"
+            unit="kcal"
+            @hover="inHover = $event"
+          />
+          <div class="heatmap-hover" :class="{ active: !!inHover }">
+            <template v-if="inHover && !inHover.future">
+              <span class="hh-date">{{ fmtDate(inHover.date) }}</span>
+              <span class="hh-val num">+{{ inHover.value.toLocaleString() }} kcal</span>
+              <span class="hh-tag" :class="`tone-${inHoverEval.tone}`">
+                {{ inHoverEval.label }}<template v-if="inHoverEval.pct"> · {{ inHoverEval.pct }}%</template>
+              </span>
+            </template>
+            <template v-else-if="inHover">
+              <span class="hh-date">{{ fmtDate(inHover.date) }}</span>
+              <span class="hh-tag tone-neutral">미래 날짜</span>
+            </template>
+            <template v-else>
+              <span class="hh-hint muted small">셀에 마우스를 올리면 상세 정보를 보여드립니다.</span>
+            </template>
+          </div>
         </div>
       </div>
     </section>
@@ -542,6 +620,50 @@ const totalCounts = computed(() => ({
 .heatmap-grid > div { min-width: 0; }    /* grid 내 SVG 가로 오버플로 방지 */
 .heatmap-label { margin-bottom: 4px; }
 @media (max-width: 920px) { .heatmap-grid { grid-template-columns: 1fr; } }
+
+.heatmap-hover {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  transition: border-color 0.15s, background 0.15s;
+}
+.heatmap-hover.active {
+  background: var(--c-surface);
+  border-color: var(--c-border-strong);
+}
+.hh-date {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--c-text);
+  font-family: var(--font-num);
+  letter-spacing: -0.005em;
+}
+.hh-val {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--c-accent-ink);
+}
+.hh-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.hh-tag.tone-ok { background: var(--c-accent-soft); color: var(--c-accent-ink); }
+.hh-tag.tone-good { background: var(--c-accent-soft); color: var(--c-accent-ink); }
+.hh-tag.tone-strong { background: #fbe9d6; color: #b45309; }
+.hh-tag.tone-warn { background: #fbe9d6; color: #b45309; }
+.hh-tag.tone-over { background: #fde2e2; color: var(--c-danger); }
+.hh-tag.tone-neutral { background: var(--c-chip); color: var(--c-text-soft); }
+.hh-hint { font-size: var(--fs-xs); }
 
 .metric-grid {
   display: grid;

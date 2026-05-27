@@ -14,6 +14,10 @@ const props = withDefaults(defineProps<{
   colors: () => ['#ebedf0', '#c8e6c9', '#9be9a8', '#40c463', '#216e39'],
 })
 
+const emit = defineEmits<{
+  hover: [cell: { date: string; value: number; future: boolean } | null]
+}>()
+
 function fmt(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -93,6 +97,8 @@ const monthLabels = computed(() => {
             :class="{ future: grid[(col - 1) * 7 + (row - 1)].future }"
             :style="{ background: grid[(col - 1) * 7 + (row - 1)].future ? 'transparent' : colors[levelOf(grid[(col - 1) * 7 + (row - 1)].value)] }"
             :title="`${grid[(col - 1) * 7 + (row - 1)].date} · ${grid[(col - 1) * 7 + (row - 1)].value} ${unit}`"
+            @mouseenter="emit('hover', grid[(col - 1) * 7 + (row - 1)])"
+            @mouseleave="emit('hover', null)"
           ></div>
         </div>
       </div>
