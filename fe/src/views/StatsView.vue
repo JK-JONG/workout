@@ -241,28 +241,37 @@ const totalCounts = computed(() => ({
 
     <!-- 요약 -->
     <section class="kpi">
-      <div class="kpi-box">
-        <div class="kpi-label">최근 30일{{ isAll ? ' · 합산' : ` · ${selectedProfile}` }}</div>
-        <div class="kpi-row">
-          <span class="kpi-mini">운동 <span class="num accent">{{ stats30.days }}</span>일</span>
-          <span class="kpi-mini">평균 소모 <span class="num">{{ stats30.avgOut }}</span></span>
-          <span class="kpi-mini">평균 섭취 <span class="num">{{ stats30.avgIn }}</span></span>
+      <div class="kpi-box kpi-30">
+        <div class="kpi-eyebrow">최근 30일{{ isAll ? ' · 합산' : ` · ${selectedProfile}` }}</div>
+        <div class="kpi-hero">
+          <span class="kpi-hero-v num">{{ stats30.days }}</span>
+          <span class="kpi-hero-u">일 운동</span>
+        </div>
+        <div class="kpi-subs">
+          <span class="kpi-sub"><span class="kpi-sub-ico">🔥</span>평균 소모 <b class="num">{{ stats30.avgOut }}</b></span>
+          <span class="kpi-sub"><span class="kpi-sub-ico">🍽</span>평균 섭취 <b class="num">{{ stats30.avgIn }}</b></span>
         </div>
       </div>
-      <div class="kpi-box">
-        <div class="kpi-label">최근 90일{{ isAll ? ' · 합산' : ` · ${selectedProfile}` }}</div>
-        <div class="kpi-row">
-          <span class="kpi-mini">운동 <span class="num accent">{{ stats90.days }}</span>일</span>
-          <span class="kpi-mini">평균 소모 <span class="num">{{ stats90.avgOut }}</span></span>
-          <span class="kpi-mini">평균 섭취 <span class="num">{{ stats90.avgIn }}</span></span>
+      <div class="kpi-box kpi-90">
+        <div class="kpi-eyebrow">최근 90일{{ isAll ? ' · 합산' : ` · ${selectedProfile}` }}</div>
+        <div class="kpi-hero">
+          <span class="kpi-hero-v num">{{ stats90.days }}</span>
+          <span class="kpi-hero-u">일 운동</span>
+        </div>
+        <div class="kpi-subs">
+          <span class="kpi-sub"><span class="kpi-sub-ico">🔥</span>평균 소모 <b class="num">{{ stats90.avgOut }}</b></span>
+          <span class="kpi-sub"><span class="kpi-sub-ico">🍽</span>평균 섭취 <b class="num">{{ stats90.avgIn }}</b></span>
         </div>
       </div>
-      <div class="kpi-box">
-        <div class="kpi-label">총 누적</div>
-        <div class="kpi-row">
-          <span class="kpi-mini">운동 <span class="num">{{ totalCounts.workouts }}</span></span>
-          <span class="kpi-mini">식단 <span class="num">{{ totalCounts.meals }}</span></span>
-          <span class="kpi-mini">신체 <span class="num">{{ totalCounts.body }}</span></span>
+      <div class="kpi-box kpi-total">
+        <div class="kpi-eyebrow">총 누적</div>
+        <div class="kpi-hero">
+          <span class="kpi-hero-v num">{{ totalCounts.workouts }}</span>
+          <span class="kpi-hero-u">건 운동</span>
+        </div>
+        <div class="kpi-subs">
+          <span class="kpi-sub"><span class="kpi-sub-ico">🍽</span>식단 <b class="num">{{ totalCounts.meals }}</b></span>
+          <span class="kpi-sub"><span class="kpi-sub-ico">⚖️</span>신체 <b class="num">{{ totalCounts.body }}</b></span>
         </div>
       </div>
     </section>
@@ -284,54 +293,69 @@ const totalCounts = computed(() => ({
     <!-- 잔디 -->
     <section class="card">
       <div class="card-head">
-        <h2 class="card-title">활동 잔디 · 1년 ({{ isAll ? '모든 사람 합산' : selectedProfile }})</h2>
+        <h2 class="card-title">활동 잔디 · 6개월 ({{ isAll ? '모든 사람 합산' : selectedProfile }})</h2>
       </div>
       <div class="heatmap-grid">
         <div>
           <div class="heatmap-label muted small">운동 소모 (kcal{{ isAll ? ' · 합산' : '' }})</div>
-          <MiniHeatmap :data="dailyOutMap" :weeks="52" :max="500" :colors="outColors" unit="kcal" />
+          <MiniHeatmap :data="dailyOutMap" :weeks="26" :max="500" :colors="outColors" unit="kcal" />
         </div>
         <div>
           <div class="heatmap-label muted small">음식 섭취 (kcal{{ isAll ? ' · 합산' : '' }})</div>
-          <MiniHeatmap :data="dailyInMap" :weeks="52" :max="2500" :colors="inColors" unit="kcal" />
+          <MiniHeatmap :data="dailyInMap" :weeks="26" :max="2500" :colors="inColors" unit="kcal" />
         </div>
       </div>
     </section>
 
-    <!-- 신체 추이 + 칼로리 추이 (2-column) -->
-    <div class="chart-grid">
-      <!-- 신체 추이 (프로필별 색상) -->
-      <section class="card">
-        <div class="card-head">
-          <h2 class="card-title">신체 추이 · 최근 90일{{ isAll ? ' (사람별 색)' : ` (${selectedProfile})` }}</h2>
+    <!-- 지표 추이 (2×2 그리드: 몸무게 / 체지방률 / 골격근량 / 칼로리) -->
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">지표 추이{{ isAll ? ' · 전체 합산' : ` · ${selectedProfile}` }}</h2>
+      </div>
+      <div class="metric-grid">
+        <!-- 몸무게 -->
+        <div class="metric-cell">
+          <div class="chart-label">몸무게 · kg <span class="muted small">· 최근 90일</span></div>
+          <LineChart
+            v-if="bodyChart.weight.length"
+            :series="bodyChart.weight"
+            :x-labels="bodyChart.xLabels"
+            :show-legend="isAll && bodyChart.weight.length > 1"
+            unit="kg"
+          />
+          <div v-else class="metric-empty">아직 기록 없음</div>
         </div>
-        <div v-if="bodyChart.hasAny" class="charts">
-          <div class="chart-block">
-            <div class="chart-label">몸무게 (kg)</div>
-            <LineChart :series="bodyChart.weight" :x-labels="bodyChart.xLabels" :show-legend="true" unit="kg" />
-          </div>
-          <div v-if="bodyChart.fat.length" class="chart-block">
-            <div class="chart-label">체지방률 (%)</div>
-            <LineChart :series="bodyChart.fat" :x-labels="bodyChart.xLabels" :show-legend="false" unit="%" />
-          </div>
-          <div v-if="bodyChart.muscle.length" class="chart-block">
-            <div class="chart-label">골격근량 (kg)</div>
-            <LineChart :series="bodyChart.muscle" :x-labels="bodyChart.xLabels" :show-legend="false" unit="kg" />
-          </div>
+        <!-- 체지방률 -->
+        <div class="metric-cell">
+          <div class="chart-label">체지방률 · % <span class="muted small">· 최근 90일</span></div>
+          <LineChart
+            v-if="bodyChart.fat.length"
+            :series="bodyChart.fat"
+            :x-labels="bodyChart.xLabels"
+            :show-legend="isAll && bodyChart.fat.length > 1"
+            unit="%"
+          />
+          <div v-else class="metric-empty">아직 기록 없음</div>
         </div>
-        <div v-else class="empty">아직 신체 기록이 없습니다.</div>
-      </section>
-
-      <!-- 칼로리 추이 -->
-      <section class="card">
-        <div class="card-head">
-          <h2 class="card-title">칼로리 추이 · 최근 30일 ({{ isAll ? '합산' : selectedProfile }})</h2>
+        <!-- 골격근량 -->
+        <div class="metric-cell">
+          <div class="chart-label">골격근량 · kg <span class="muted small">· 최근 90일</span></div>
+          <LineChart
+            v-if="bodyChart.muscle.length"
+            :series="bodyChart.muscle"
+            :x-labels="bodyChart.xLabels"
+            :show-legend="isAll && bodyChart.muscle.length > 1"
+            unit="kg"
+          />
+          <div v-else class="metric-empty">아직 기록 없음</div>
         </div>
-        <div class="chart-block">
-          <LineChart :series="kcalSeries" :x-labels="kcalChart.xLabels" unit="kcal" />
+        <!-- 칼로리 -->
+        <div class="metric-cell">
+          <div class="chart-label">칼로리 · kcal <span class="muted small">· 최근 30일</span></div>
+          <LineChart :series="kcalSeries" :x-labels="kcalChart.xLabels" :show-legend="true" unit="kcal" />
         </div>
-      </section>
-    </div>
+      </div>
+    </section>
 
     <!-- 부위별 빈도 -->
     <section class="card">
@@ -421,13 +445,71 @@ const totalCounts = computed(() => ({
 .small { font-size: var(--fs-xs); font-weight: normal; }
 .accent { color: var(--c-accent); }
 
-.kpi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.kpi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 @media (max-width: 760px) { .kpi { grid-template-columns: 1fr; } }
-.kpi-box { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-md); padding: 8px 12px; box-shadow: var(--shadow-xs); }
-.kpi-label { font-size: var(--fs-xs); color: var(--c-text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
-.kpi-row { display: flex; flex-wrap: wrap; gap: 10px; font-size: var(--fs-sm); }
-.kpi-mini { color: var(--c-text-soft); }
-.kpi-mini .num { font-weight: 600; color: var(--c-text); margin: 0 1px; }
+.kpi-box {
+  position: relative;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px 14px;
+  box-shadow: var(--shadow-xs);
+  display: grid;
+  gap: 10px;
+  min-height: 132px;
+  overflow: hidden;
+}
+.kpi-box::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--c-border);
+}
+.kpi-30::before { background: var(--c-accent); }
+.kpi-90::before { background: var(--c-accent-soft); }
+.kpi-total { background: var(--c-surface-2); }
+.kpi-total::before { background: var(--c-text-soft); }
+
+.kpi-eyebrow {
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+.kpi-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  line-height: 1;
+}
+.kpi-hero-v {
+  font-size: 38px;
+  font-weight: 700;
+  color: var(--c-text);
+  letter-spacing: -0.02em;
+}
+.kpi-30 .kpi-hero-v { color: var(--c-accent); }
+.kpi-hero-u {
+  font-size: var(--fs-sm);
+  color: var(--c-text-soft);
+  font-weight: 500;
+}
+.kpi-subs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: var(--fs-sm);
+  color: var(--c-text-soft);
+  margin-top: auto;
+  padding-top: 4px;
+  border-top: 1px dashed var(--c-border);
+}
+.kpi-sub { display: inline-flex; align-items: center; gap: 4px; }
+.kpi-sub-ico { font-size: 12px; line-height: 1; }
+.kpi-sub b { font-weight: 600; color: var(--c-text); }
 
 .ppa { display: grid; gap: 4px; }
 .ppa-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: var(--radius-sm); }
@@ -440,16 +522,36 @@ const totalCounts = computed(() => ({
 .heatmap-label { margin-bottom: 4px; }
 @media (max-width: 920px) { .heatmap-grid { grid-template-columns: 1fr; } }
 
-.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.chart-grid > .card { min-width: 0; }
-@media (max-width: 920px) { .chart-grid { grid-template-columns: 1fr; } }
+.metric-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 18px;
+}
+.metric-grid > .metric-cell { min-width: 0; }
+@media (max-width: 920px) { .metric-grid { grid-template-columns: 1fr; } }
 
-.charts { display: grid; gap: 14px; }
-.chart-block {
-  display: grid; gap: 4px;
+.metric-cell {
+  display: grid;
+  gap: 6px;
+  align-content: start;
   min-width: 0;
 }
-.chart-label { font-size: var(--fs-xs); color: var(--c-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.chart-label {
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+.metric-empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  background: var(--c-surface-2);
+  border: 1px dashed var(--c-border);
+  border-radius: var(--radius-md);
+}
 
 .bars { display: grid; gap: 6px; }
 .bar-row { display: grid; grid-template-columns: 64px 1fr 60px; align-items: center; gap: 8px; }

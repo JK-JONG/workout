@@ -210,7 +210,7 @@ function lastSummary(exId: string): string | null {
               @click="pickExercise(e)"
             >
               <img v-if="hasValidImage(e)" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" @error="markImageBroken(e.id)" />
-              <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">⚡</div>
+              <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">{{ e.emoji || '⚡' }}</div>
               <div class="row-main">
                 <div class="row-name">{{ e.name }}<span v-if="e.search_en" class="row-en"> ({{ e.search_en }})</span></div>
                 <div class="row-sub">
@@ -240,7 +240,7 @@ function lastSummary(exId: string): string | null {
               @click="pickExercise(e)"
             >
               <img v-if="hasValidImage(e)" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" @error="markImageBroken(e.id)" />
-              <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">⚡</div>
+              <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">{{ e.emoji || '⚡' }}</div>
               <div class="row-main">
                 <div class="row-lead">
                   <span class="row-index num">{{ e.order_no }}</span>
@@ -269,7 +269,7 @@ function lastSummary(exId: string): string | null {
           <ul class="list">
             <li v-for="e in cardioExercises" :key="e.id" class="row-item" :class="{ picked: selectedExercise?.id === e.id }" @click="pickExercise(e)">
               <img v-if="hasValidImage(e)" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" @error="markImageBroken(e.id)" />
-              <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">⚡</div>
+              <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">{{ e.emoji || '⚡' }}</div>
               <div class="row-main">
                 <div class="row-name">{{ e.name }}<span v-if="e.search_en" class="row-en"> ({{ e.search_en }})</span></div>
                 <div class="row-sub muted">{{ e.equipment }}</div>
@@ -293,7 +293,7 @@ function lastSummary(exId: string): string | null {
               <ul class="list">
                 <li v-for="e in list" :key="e.id" class="row-item" :class="{ picked: selectedExercise?.id === e.id }" @click="pickExercise(e)">
                   <img v-if="hasValidImage(e)" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" @error="markImageBroken(e.id)" />
-              <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">⚡</div>
+              <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">{{ e.emoji || '⚡' }}</div>
                   <div class="row-main">
                     <div class="row-name">{{ e.name }}<span v-if="e.search_en" class="row-en"> ({{ e.search_en }})</span></div>
                     <div class="row-sub">

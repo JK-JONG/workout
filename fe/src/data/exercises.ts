@@ -18,6 +18,7 @@ export interface ExerciseItem {
   note?: string
   search_en?: string
   image_url?: string
+  emoji?: string  // image_url이 없거나 깨졌을 때 표시할 운동별 fallback
 }
 
 export const ROUTINES: Routine[] = ['등&삼두', '하체&이두', '가슴&복근', '어깨&삼두']
@@ -96,6 +97,6 @@ export const EXERCISES: ExerciseItem[] = [
   { id: 'elliptical-machine',  name: '일립티컬',                 category: '유산소', equipment: '유산소기구', met: 5.0, unit: 'time',                          body_part: '전신',                         search_en: 'elliptical machine',              image_url: IMG + '2141-rjtuP6X.gif' },
 
   // ── 매일 맨몸(고정 노출) ──
-  { id: 'bw-lunge',            name: '런지 (맨몸)',              category: '하체', equipment: '맨몸',   met: 5.5, unit: 'reps', duration_per_set: 0.6, body_part: '대퇴사두근, 대둔근',           search_en: 'bodyweight lunge', image_url: IMG + '0608-LqJOzVO.gif' },
-  { id: 'ab-slide',            name: 'AB 슬라이드',              category: '복근', equipment: '맨몸',   met: 5.0, unit: 'reps', duration_per_set: 0.6, body_part: '복직근, 코어',                 search_en: 'ab wheel rollout',  image_url: IMG + '0007-XPK1Fcr.gif' },
+  { id: 'bw-lunge',            name: '런지 (맨몸)',              category: '하체', equipment: '맨몸',   met: 5.5, unit: 'reps', duration_per_set: 0.6, body_part: '대퇴사두근, 대둔근',           search_en: 'bodyweight lunge',  emoji: '🦵' },
+  { id: 'ab-slide',            name: 'AB 슬라이드',              category: '복근', equipment: '맨몸',   met: 5.0, unit: 'reps', duration_per_set: 0.6, body_part: '복직근, 코어',                 search_en: 'ab wheel rollout',  emoji: '🔄' },
 ]

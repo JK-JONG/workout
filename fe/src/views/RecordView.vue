@@ -624,20 +624,32 @@ async function exportReport() {
 
 .record-head-right { display: inline-flex; align-items: center; gap: 8px; }
 .btn-export {
-  height: 32px;
-  padding: 0 14px;
+  height: 36px;
+  padding: 0 16px;
   font-size: var(--fs-sm);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  letter-spacing: -0.005em;
   color: #fff;
-  background: var(--c-accent);
+  background: linear-gradient(135deg, #1f5733 0%, #2f7d4a 100%);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xs);
-  transition: background 0.15s, transform 0.05s;
+  box-shadow: 0 1px 3px rgba(31, 87, 51, 0.28), inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+  transition: transform 0.1s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
-.btn-export:hover { background: var(--c-accent-ink); }
-.btn-export:active { transform: translateY(1px); }
-.btn-export:disabled { opacity: 0.55; cursor: progress; }
+.btn-export:hover {
+  box-shadow: 0 3px 8px rgba(31, 87, 51, 0.32), inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+.btn-export:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(31, 87, 51, 0.25), inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+.btn-export:disabled {
+  opacity: 0.55;
+  cursor: progress;
+  transform: none;
+  filter: none;
+}
 
 .report-host {
   position: fixed;

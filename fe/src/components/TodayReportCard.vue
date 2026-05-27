@@ -110,7 +110,7 @@ const balance = computed(() => {
   return         { label: '많음',               tone: 'warn',    rule: 'NET > 500' }
 })
 
-// 평가 코멘트 — 운동 부각 → 권장 대비 → 종합 결론
+// 평가 코멘트 — 운동 부각 → 권장 대비 → 종합 결론 (NET 단편 줄 제거)
 const comment = computed(() => {
   const lines: string[] = []
   const hasWorkout = kcalOut.value > 0 || workoutsOfDate.value.length > 0
@@ -119,51 +119,65 @@ const comment = computed(() => {
   const diff = rec > 0 ? kcalIn.value - rec : 0
   const ratio = rec > 0 ? Math.round((kcalIn.value / rec) * 100) : 0
 
-  // 1) 운동 요약 (먼저, 부각)
+  // 기록 없음
+  if (!hasWorkout && !hasMeal) {
+    lines.push(`아직 오늘 기록이 없습니다. 운동이나 식단을 입력해 보세요.`)
+    return lines
+  }
+
+  // 1) 운동 줄 — 결과 부각
   if (hasWorkout) {
     const parts: string[] = []
     if (totalSets.value > 0) parts.push(`${totalSets.value}세트`)
     if (totalVolume.value > 0) parts.push(`볼륨 ${totalVolume.value.toLocaleString()} kg·rep`)
     if (cardioMinutes.value > 0) parts.push(`유산소 ${cardioMinutes.value}분`)
     if (cardioKm.value > 0) parts.push(`${cardioKm.value}km`)
-    const detail = parts.length ? parts.join(' · ') : '운동 기록'
-    lines.push(`오늘 운동: ${detail} → 소모 ${kcalOut.value} kcal ("${intensity.value.label}")`)
+    const detail = parts.length ? ` (${parts.join(' · ')})` : ''
+    lines.push(`오늘 운동으로 ${kcalOut.value.toLocaleString()} kcal를 소모했습니다${detail}. 강도는 "${intensity.value.label}".`)
+  } else {
+    lines.push(`오늘은 아직 운동 기록이 없습니다.`)
   }
 
-  // 2) 식단 vs 권장
-  if (hasMeal) {
-    if (rec > 0) {
-      const sign = diff > 0 ? '+' : ''
-      lines.push(`섭취 ${kcalIn.value.toLocaleString()} kcal · 권장 ${rec.toLocaleString()} 대비 ${sign}${diff} kcal (${ratio}%) → "${balance.value.label}"`)
-    } else {
-      lines.push(`섭취 ${kcalIn.value.toLocaleString()} kcal (권장 칼로리는 신체 정보 입력 후 계산)`)
-    }
-  }
-
-  // 3) 종합 결론
-  if (!hasWorkout && !hasMeal) {
-    lines.push(`아직 기록 없음`)
-  } else if (hasWorkout && hasMeal && rec > 0) {
-    if (diff <= 150) {
-      lines.push(`잘 한 하루 ✓ 운동도 했고 식단도 지켰음`)
+  // 2) 식단 + 권장 평가 — 완결된 한 문장
+  if (hasMeal && rec > 0) {
+    if (diff <= -500) {
+      lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal로 권장(${rec.toLocaleString()})보다 ${Math.abs(diff).toLocaleString()} kcal 적습니다 (${ratio}%). 감량 페이스로 잘 가고 있어요.`)
+    } else if (diff <= -150) {
+      lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal로 권장(${rec.toLocaleString()})보다 약간 적습니다 (${ratio}%). 식단을 잘 지키고 있어요.`)
+    } else if (diff <= 150) {
+      lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal로 권장(${rec.toLocaleString()})에 거의 맞습니다 (${ratio}%). 균형 잡힌 보통 페이스.`)
     } else if (diff <= 500) {
-      lines.push(`운동 ${kcalOut.value} kcal로 잉여 일부 상쇄. 내일은 식단 조금만 줄여보기`)
+      lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal로 권장(${rec.toLocaleString()})보다 ${diff.toLocaleString()} kcal 많습니다 (${ratio}%). 내일은 조금만 줄여보세요.`)
     } else {
-      lines.push(`운동 ${kcalOut.value} kcal로 잉여 일부 상쇄. 내일은 식단 조금만 줄여보기`)
+      lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal로 권장(${rec.toLocaleString()})을 ${diff.toLocaleString()} kcal 초과했습니다 (${ratio}%). 식단 점검이 필요한 날.`)
     }
+  } else if (hasMeal) {
+    lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal. 신체 정보를 입력하면 권장 칼로리 대비 평가도 함께 보여드립니다.`)
+  } else {
+    lines.push(`오늘은 아직 식단 기록이 없습니다.`)
+  }
+
+  // 3) 종합 결론 — 운동 + 식단 조합별로 자연스럽게
+  if (hasWorkout && hasMeal && rec > 0) {
+    if (diff <= -150) {
+      lines.push(`운동까지 더해 ${kcalOut.value.toLocaleString()} kcal를 소모한 알찬 하루입니다. 이대로만 가요.`)
+    } else if (diff <= 150) {
+      lines.push(`운동도 챙기고 식단도 지킨 균형 잡힌 하루입니다. 잘 했어요.`)
+    } else if (diff <= 500) {
+      lines.push(`운동 ${kcalOut.value.toLocaleString()} kcal 덕분에 잉여를 어느 정도 상쇄했습니다. 내일은 식단을 조금만 다잡아 볼까요.`)
+    } else {
+      lines.push(`운동으로 ${kcalOut.value.toLocaleString()} kcal를 소모해 잉여를 일부 상쇄했지만, 내일은 식단을 더 신경 써 보세요.`)
+    }
+  } else if (hasWorkout && hasMeal) {
+    lines.push(`운동과 식단 모두 기록한 하루입니다. 신체 정보를 채우면 권장 대비 분석도 가능합니다.`)
+  } else if (hasWorkout && !hasMeal) {
+    lines.push(`운동만 기록한 날입니다. 식단도 함께 남기면 권장 대비 분석이 더 정확해져요.`)
   } else if (!hasWorkout && hasMeal && rec > 0) {
     if (diff <= 150) {
-      lines.push(`식단 잘 지킴. 가벼운 활동이라도 추가하면 더 좋음`)
-    } else if (diff > 500) {
-      lines.push(`오늘은 식단 점검이 필요한 날`)
+      lines.push(`식단을 잘 지킨 하루. 가벼운 운동을 더하면 컨디션이 한층 더 좋아질 거예요.`)
     } else {
-      lines.push(`식단 조금만 줄이고 가벼운 활동 추가하면 좋음`)
+      lines.push(`섭취가 다소 많았던 날입니다. 가벼운 유산소나 코어 운동을 추가해 보세요.`)
     }
-  }
-  // NET 정보는 작은 보조 줄로 (필요시)
-  if ((hasWorkout && hasMeal) || (hasMeal && !hasWorkout) || (hasWorkout && !hasMeal)) {
-    const sign = kcalNet.value >= 0 ? '+' : ''
-    lines.push(`참고 · NET ${sign}${kcalNet.value.toLocaleString()} kcal (섭취 − 소모)`)
   }
 
   return lines
@@ -256,8 +270,12 @@ const ringStyle = computed(() => ({
           <div class="hero-k">NET</div>
           <div class="hero-v num">{{ kcalNet > 0 ? '+' : '' }}{{ kcalNet.toLocaleString() }}</div>
           <div class="hero-u">kcal</div>
-          <div v-if="recommendedKcal > 0" class="hero-cap">
-            vs 권장 {{ recommendedKcal.toLocaleString() }} · {{ intakeRatio }}%
+          <div v-if="recommendedKcal > 0 || kcalOut > 0" class="hero-cap">
+            <template v-if="recommendedKcal > 0">
+              vs 권장 {{ recommendedKcal.toLocaleString() }} · {{ intakeRatio }}%
+            </template>
+            <template v-if="recommendedKcal > 0 && kcalOut > 0"><br></template>
+            <span v-if="kcalOut > 0" class="hero-cap-out">운동 소모 −{{ kcalOut.toLocaleString() }} kcal 반영</span>
           </div>
         </div>
       </div>
@@ -597,6 +615,11 @@ const ringStyle = computed(() => ({
   color: #5a564d;
   letter-spacing: -0.005em;
   font-weight: 500;
+  line-height: 1.6;
+}
+.hero-cap-out {
+  color: #2f7d4a;
+  font-weight: 700;
 }
 
 /* ─── 평가 뱃지 + 코멘트 ─── */
