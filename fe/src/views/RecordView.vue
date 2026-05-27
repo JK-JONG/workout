@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, onMounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useLocalStorage } from '@vueuse/core'
 import { useLogStore } from '@/stores/log'
@@ -71,6 +71,53 @@ function switchTab(key: TabKey) {
   }
 }
 
+// ── 날짜 네비게이션 ──
+const isToday = computed(() => selectedDate.value === todayStr())
+const dateLabel = computed(() => {
+  const d = new Date(selectedDate.value + 'T00:00:00')
+  if (isNaN(d.getTime())) return selectedDate.value
+  const wd = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()]
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${m}.${day} (${wd})`
+})
+
+function shiftDate(days: number) {
+  const d = new Date(selectedDate.value + 'T00:00:00')
+  if (isNaN(d.getTime())) return
+  d.setDate(d.getDate() + days)
+  selectedDate.value = d.toISOString().slice(0, 10)
+}
+function goToday() {
+  selectedDate.value = todayStr()
+}
+
+function onKey(ev: KeyboardEvent) {
+  // 입력 요소에 포커스가 있을 땐 무시 (값 편집 중)
+  const t = ev.target as HTMLElement | null
+  if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return
+  if (t?.isContentEditable) return
+  if (ev.metaKey || ev.ctrlKey || ev.altKey) return
+  if (ev.key === 'ArrowLeft') { shiftDate(-1); ev.preventDefault() }
+  else if (ev.key === 'ArrowRight') { shiftDate(1); ev.preventDefault() }
+  else if (ev.key.toLowerCase() === 't' && !isToday.value) { goToday(); ev.preventDefault() }
+}
+
+onMounted(() => window.addEventListener('keydown', onKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+
+const dateInputRef = ref<HTMLInputElement | null>(null)
+function openDatePicker() {
+  const el = dateInputRef.value
+  if (!el) return
+  // 일부 브라우저(Chrome)는 showPicker()를 지원 — 안 되면 focus로 fallback
+  if (typeof el.showPicker === 'function') {
+    try { el.showPicker(); return } catch { /* noop */ }
+  }
+  el.focus()
+  el.click()
+}
+
 const reportRef = ref<HTMLElement | null>(null)
 const reportMounted = ref(false)
 const exporting = ref(false)
@@ -132,7 +179,48 @@ async function exportReport() {
           <button class="btn-export" :disabled="exporting" @click="exportReport">
             {{ exporting ? '생성 중…' : '🖼 평가서 이미지' }}
           </button>
-          <input class="date-input" type="date" v-model="selectedDate" />
+
+          <div class="date-picker" :class="{ 'is-today': isToday }">
+            <button
+              type="button"
+              class="date-nav"
+              @click="shiftDate(-1)"
+              aria-label="이전 날짜"
+              title="이전 날짜 (←)"
+            >‹</button>
+            <button
+              type="button"
+              class="date-display"
+              @click="openDatePicker"
+              :title="selectedDate"
+            >
+              <span class="date-icon" aria-hidden="true">📅</span>
+              <span class="date-text">{{ dateLabel }}</span>
+              <span v-if="isToday" class="date-badge">오늘</span>
+            </button>
+            <input
+              ref="dateInputRef"
+              class="date-input-hidden"
+              type="date"
+              v-model="selectedDate"
+              aria-label="날짜 선택"
+              tabindex="-1"
+            />
+            <button
+              type="button"
+              class="date-nav"
+              @click="shiftDate(1)"
+              aria-label="다음 날짜"
+              title="다음 날짜 (→)"
+            >›</button>
+            <button
+              type="button"
+              class="date-today"
+              :disabled="isToday"
+              @click="goToday"
+              title="오늘로"
+            >오늘</button>
+          </div>
         </div>
       </div>
 
@@ -242,15 +330,86 @@ async function exportReport() {
 }
 .record-head-icon { font-size: 22px; line-height: 1; }
 
-.date-input {
-  height: 32px; padding: 0 10px;
+/* ─── 날짜 선택 ─── */
+.date-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 36px;
+  padding: 2px;
+  background: var(--c-surface);
   border: 1px solid var(--c-border-strong);
   border-radius: var(--radius-md);
-  background: var(--c-surface);
-  font-size: var(--fs-md);
-  font-family: var(--font-num);
+  box-shadow: var(--shadow-xs);
+  position: relative;
 }
-.date-input:focus { border-color: var(--c-accent); box-shadow: 0 0 0 3px var(--c-accent-soft); outline: none; }
+.date-picker.is-today { border-color: var(--c-accent); }
+.date-nav {
+  width: 28px; height: 30px;
+  display: inline-grid; place-items: center;
+  font-size: 18px;
+  color: var(--c-text-muted);
+  border-radius: var(--radius-sm);
+  transition: background 0.15s, color 0.15s;
+}
+.date-nav:hover { background: var(--c-surface-2); color: var(--c-text); }
+.date-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--c-text);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+}
+.date-display:hover { background: var(--c-surface-2); }
+.date-icon { font-size: 14px; line-height: 1; }
+.date-text { font-family: var(--font-num); }
+.date-badge {
+  margin-left: 4px;
+  padding: 2px 7px;
+  background: var(--c-accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+}
+.date-input-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  border: 0; clip: rect(0 0 0 0);
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+}
+.date-today {
+  height: 30px;
+  margin-left: 4px;
+  padding: 0 12px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--c-accent-ink);
+  background: var(--c-accent-soft);
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.02em;
+  transition: background 0.15s, color 0.15s;
+}
+.date-today:hover { background: var(--c-accent); color: #fff; }
+.date-today:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--c-surface-2);
+  color: var(--c-text-muted);
+}
+
 .tab-body { margin-top: 4px; }
 
 .record-head-right { display: inline-flex; align-items: center; gap: 8px; }

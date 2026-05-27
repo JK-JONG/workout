@@ -18,6 +18,15 @@ const EXTRA_CATEGORY_ORDER = ['가슴', '등', '하체', '어깨', '팔', '복�
 const DAILY_IDS = ['crunch-25x3', 'pushup', 'bw-lunge', 'ab-slide'] as const
 const DAILY_IDS_SET: ReadonlySet<string> = new Set(DAILY_IDS)
 
+// 이미지가 깨졌을 때 표시할 ID들 (Set은 reactivity 안정성을 위해 object로 관리)
+const brokenImages = ref<Record<string, boolean>>({})
+function markImageBroken(id: string) {
+  brokenImages.value = { ...brokenImages.value, [id]: true }
+}
+function hasValidImage(e: ExerciseItem): boolean {
+  return Boolean(e.image_url) && !brokenImages.value[e.id]
+}
+
 const exerciseQuery = ref('')
 const filteredExercises = computed(() => {
   const q = exerciseQuery.value.trim()
@@ -200,7 +209,7 @@ function lastSummary(exId: string): string | null {
               :class="{ picked: selectedExercise?.id === e.id }"
               @click="pickExercise(e)"
             >
-              <img v-if="e.image_url" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" />
+              <img v-if="hasValidImage(e)" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" @error="markImageBroken(e.id)" />
               <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">⚡</div>
               <div class="row-main">
                 <div class="row-name">{{ e.name }}<span v-if="e.search_en" class="row-en"> ({{ e.search_en }})</span></div>
@@ -230,7 +239,8 @@ function lastSummary(exId: string): string | null {
               :class="{ picked: selectedExercise?.id === e.id }"
               @click="pickExercise(e)"
             >
-              <img v-if="e.image_url" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" />
+              <img v-if="hasValidImage(e)" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" @error="markImageBroken(e.id)" />
+              <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">⚡</div>
               <div class="row-main">
                 <div class="row-lead">
                   <span class="row-index num">{{ e.order_no }}</span>
@@ -258,7 +268,8 @@ function lastSummary(exId: string): string | null {
           </div>
           <ul class="list">
             <li v-for="e in cardioExercises" :key="e.id" class="row-item" :class="{ picked: selectedExercise?.id === e.id }" @click="pickExercise(e)">
-              <img v-if="e.image_url" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" />
+              <img v-if="hasValidImage(e)" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" @error="markImageBroken(e.id)" />
+              <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">⚡</div>
               <div class="row-main">
                 <div class="row-name">{{ e.name }}<span v-if="e.search_en" class="row-en"> ({{ e.search_en }})</span></div>
                 <div class="row-sub muted">{{ e.equipment }}</div>
@@ -281,7 +292,8 @@ function lastSummary(exId: string): string | null {
               </summary>
               <ul class="list">
                 <li v-for="e in list" :key="e.id" class="row-item" :class="{ picked: selectedExercise?.id === e.id }" @click="pickExercise(e)">
-                  <img v-if="e.image_url" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" />
+                  <img v-if="hasValidImage(e)" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" @error="markImageBroken(e.id)" />
+              <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">⚡</div>
                   <div class="row-main">
                     <div class="row-name">{{ e.name }}<span v-if="e.search_en" class="row-en"> ({{ e.search_en }})</span></div>
                     <div class="row-sub">
