@@ -228,7 +228,7 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
       <div class="stat">
         <div class="stat-label">오늘 강도</div>
         <div class="stat-value-text">{{ intensityLabel(kcalOut) }}</div>
-        <div class="stat-cap muted">{{ intensityRule(kcalOut) }}</div>
+        <div class="intensity-rule">기준 · {{ intensityRule(kcalOut) }}</div>
       </div>
     </div>
   </section>
@@ -469,6 +469,19 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
   font-size: 10px;
   font-weight: 500;
   opacity: 0.85;
+}
+
+.intensity-rule {
+  margin-top: 4px;
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--c-text-soft);
+  background: var(--c-chip);
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  font-family: var(--font-num);
 }
 .tone-ok { color: var(--c-accent); }
 .tone-warn { color: var(--c-warn); }
