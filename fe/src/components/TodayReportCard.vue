@@ -89,25 +89,21 @@ const intensity = computed(() => {
   return         { label: '고강도',        tone: 'strong',  rule: '≥ 500 kcal' }
 })
 
+// 섭취가 권장 칼로리의 몇 %인지를 기준으로 5단계 평가.
+// 90% 중심을 "적정"으로 두고 양쪽 끝(많이 부족 / 많이 초과)이 위험.
 const balance = computed(() => {
-  const n = kcalNet.value
   const rec = recommendedKcal.value
   if (kcalIn.value === 0 && kcalOut.value === 0) return { label: '기록 없음', tone: 'neutral', rule: '입력 없음' }
-  // 권장 칼로리 정보가 있으면 권장 대비로 평가 (더 정확)
   if (rec > 0) {
-    const diff = kcalIn.value - rec
-    if (diff <= -500) return { label: '감량 페이스', tone: 'good',    rule: `섭취 ≤ 권장 − 500` }
-    if (diff <= -150) return { label: '잘 지킴',     tone: 'ok',      rule: `권장 − 500 ~ − 150` }
-    if (diff <= 150)  return { label: '보통',        tone: 'neutral', rule: `권장 ± 150` }
-    if (diff <= 500)  return { label: '약간 많음',   tone: 'warn',    rule: `권장 + 150 ~ + 500` }
-    return              { label: '많음',             tone: 'warn',    rule: `권장 + 500 초과` }
+    const pct = (kcalIn.value / rec) * 100
+    if (pct < 70)   return { label: '많이 부족', tone: 'warn',    rule: '권장의 < 70%' }
+    if (pct < 85)   return { label: '부족',     tone: 'neutral', rule: '권장의 70 ~ 85%' }
+    if (pct <= 110) return { label: '적정',     tone: 'ok',      rule: '권장의 85 ~ 110%' }
+    if (pct <= 130) return { label: '초과',     tone: 'warn',    rule: '권장의 110 ~ 130%' }
+    return            { label: '많이 초과', tone: 'over',    rule: '권장의 > 130%' }
   }
-  // 권장 정보가 없으면 NET 절대값으로 fallback
-  if (n <= -500) return { label: '감량 페이스', tone: 'good',    rule: 'NET ≤ −500' }
-  if (n <= -150) return { label: '잘 지킴',     tone: 'ok',      rule: '−500 < NET ≤ −150' }
-  if (n <= 150)  return { label: '보통',        tone: 'neutral', rule: '−150 < NET ≤ 150' }
-  if (n <= 500)  return { label: '약간 많음',   tone: 'warn',    rule: '150 < NET ≤ 500' }
-  return         { label: '많음',               tone: 'warn',    rule: 'NET > 500' }
+  // 권장 정보가 없으면 평가 보류
+  return { label: '평가 보류', tone: 'neutral', rule: '권장 칼로리 미입력' }
 })
 
 // 평가 코멘트 — 운동 부각 → 권장 대비 → 종합 결론 (NET 단편 줄 제거)
@@ -138,18 +134,19 @@ const comment = computed(() => {
     lines.push(`오늘은 아직 운동 기록이 없습니다.`)
   }
 
-  // 2) 식단 + 권장 평가 — 완결된 한 문장
+  // 2) 식단 + 권장 평가 — 권장 대비 %로 평가
   if (hasMeal && rec > 0) {
-    if (diff <= -500) {
-      lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal로 권장(${rec.toLocaleString()})보다 ${Math.abs(diff).toLocaleString()} kcal 적습니다 (${ratio}%). 감량 페이스로 잘 가고 있어요.`)
-    } else if (diff <= -150) {
-      lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal로 권장(${rec.toLocaleString()})보다 약간 적습니다 (${ratio}%). 식단을 잘 지키고 있어요.`)
-    } else if (diff <= 150) {
-      lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal로 권장(${rec.toLocaleString()})에 거의 맞습니다 (${ratio}%). 균형 잡힌 보통 페이스.`)
-    } else if (diff <= 500) {
-      lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal로 권장(${rec.toLocaleString()})보다 ${diff.toLocaleString()} kcal 많습니다 (${ratio}%). 내일은 조금만 줄여보세요.`)
+    const pct = ratio
+    if (pct < 70) {
+      lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal로 권장(${rec.toLocaleString()})의 ${pct}%에 그쳤습니다. 영양 부족이 우려되니 다음 끼에 더 챙겨드세요.`)
+    } else if (pct < 85) {
+      lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal로 권장(${rec.toLocaleString()})의 ${pct}% 수준입니다. 살짝 부족하지만 감량 중이라면 괜찮은 페이스.`)
+    } else if (pct <= 110) {
+      lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal로 권장(${rec.toLocaleString()})의 ${pct}%. 적정 범위 안에서 잘 챙겨 드셨어요.`)
+    } else if (pct <= 130) {
+      lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal로 권장(${rec.toLocaleString()})의 ${pct}%. 살짝 초과했으니 내일은 조금만 줄여보세요.`)
     } else {
-      lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal로 권장(${rec.toLocaleString()})을 ${diff.toLocaleString()} kcal 초과했습니다 (${ratio}%). 식단 점검이 필요한 날.`)
+      lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal로 권장(${rec.toLocaleString()})의 ${pct}%. 많이 초과했으니 식단 점검이 필요합니다.`)
     }
   } else if (hasMeal) {
     lines.push(`섭취는 ${kcalIn.value.toLocaleString()} kcal. 신체 정보를 입력하면 권장 칼로리 대비 평가도 함께 보여드립니다.`)
@@ -159,21 +156,23 @@ const comment = computed(() => {
 
   // 3) 종합 결론 — 운동 + 식단 조합별로 자연스럽게
   if (hasWorkout && hasMeal && rec > 0) {
-    if (diff <= -150) {
-      lines.push(`운동까지 더해 ${kcalOut.value.toLocaleString()} kcal를 소모한 알찬 하루입니다. 이대로만 가요.`)
-    } else if (diff <= 150) {
-      lines.push(`운동도 챙기고 식단도 지킨 균형 잡힌 하루입니다. 잘 했어요.`)
-    } else if (diff <= 500) {
-      lines.push(`운동 ${kcalOut.value.toLocaleString()} kcal 덕분에 잉여를 어느 정도 상쇄했습니다. 내일은 식단을 조금만 다잡아 볼까요.`)
+    const pct = ratio
+    if (pct < 70) {
+      lines.push(`운동까지 ${kcalOut.value.toLocaleString()} kcal를 소모해 부담이 큰 하루입니다. 회복을 위해 다음 끼는 든든히 챙기세요.`)
+    } else if (pct <= 110) {
+      lines.push(`운동도 챙기고 식단도 적정 범위에 있는 균형 잡힌 하루입니다. 잘 했어요.`)
+    } else if (pct <= 130) {
+      lines.push(`운동 ${kcalOut.value.toLocaleString()} kcal 덕분에 잉여를 어느 정도 상쇄했습니다. 내일은 식단을 살짝만 다잡아 볼까요.`)
     } else {
-      lines.push(`운동으로 ${kcalOut.value.toLocaleString()} kcal를 소모해 잉여를 일부 상쇄했지만, 내일은 식단을 더 신경 써 보세요.`)
+      lines.push(`운동으로 ${kcalOut.value.toLocaleString()} kcal를 소모했지만 섭취가 많이 초과됐습니다. 내일은 식단을 더 신경 써 보세요.`)
     }
   } else if (hasWorkout && hasMeal) {
     lines.push(`운동과 식단 모두 기록한 하루입니다. 신체 정보를 채우면 권장 대비 분석도 가능합니다.`)
   } else if (hasWorkout && !hasMeal) {
     lines.push(`운동만 기록한 날입니다. 식단도 함께 남기면 권장 대비 분석이 더 정확해져요.`)
   } else if (!hasWorkout && hasMeal && rec > 0) {
-    if (diff <= 150) {
+    const pct = ratio
+    if (pct <= 110) {
       lines.push(`식단을 잘 지킨 하루. 가벼운 운동을 더하면 컨디션이 한층 더 좋아질 거예요.`)
     } else {
       lines.push(`섭취가 다소 많았던 날입니다. 가벼운 유산소나 코어 운동을 추가해 보세요.`)
@@ -584,6 +583,8 @@ const ringStyle = computed(() => ({
 .hero-cell.good .hero-v { color: #1f5733; }
 .hero-cell.warn { border-left: 4px solid #d97706; }
 .hero-cell.warn .hero-v { color: #d97706; }
+.hero-cell.over { border-left: 4px solid #b91c1c; background: #fef2f2; }
+.hero-cell.over .hero-v { color: #b91c1c; }
 .hero-cell.ok .hero-v { color: #2f7d4a; }
 .hero-cell.neutral .hero-v { color: #1a1a18; }
 
@@ -668,7 +669,8 @@ const ringStyle = computed(() => ({
 .badge-v.good { color: #1f5733; }
 .badge-v.strong { color: #b45309; }
 .badge-v.warn { color: #b45309; }
-.badge-v.neutral { color: #1a1a18; }
+.badge-v.over { color: #b91c1c; }
+.badge-v.neutral { color: #5a564d; }
 .badge-rule {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 10px;

@@ -21,8 +21,8 @@ const props = withDefaults(defineProps<{
 })
 
 const VB_W = 600
-const PAD_L = 36
-const PAD_R = 10
+const PAD_L = 48
+const PAD_R = 14
 const PAD_T = 10
 const PAD_B = 22
 
@@ -73,7 +73,7 @@ const layout = computed(() => {
       <!-- 그리드 -->
       <g class="lc-grid">
         <line v-for="(g, i) in layout.grid" :key="i" :x1="PAD_L" :x2="VB_W - PAD_R" :y1="g.y" :y2="g.y" />
-        <text v-for="(g, i) in layout.grid" :key="'l'+i" :x="PAD_L - 4" :y="g.y" class="lc-y-label">{{ g.label }}</text>
+        <text v-for="(g, i) in layout.grid" :key="'l'+i" :x="PAD_L - 6" :y="g.y" class="lc-y-label" text-anchor="end" dominant-baseline="central">{{ g.label }}</text>
       </g>
       <!-- 라인 + 점 -->
       <g v-for="s in layout.series" :key="s.label">

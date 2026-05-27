@@ -68,15 +68,15 @@ const intakeRatio = computed(() => {
   return Math.round((kcalIn.value / recommendedKcal.value) * 100)
 })
 
-// 평가서 카드와 동일한 5단계로 통일 (권장 대비 kcal 차이 기준).
-const intakeStatus = computed<{ label: string; tone: 'ok' | 'good' | 'warn' | 'over' | 'neutral' }>(() => {
+// 평가서 카드와 동일한 5단계 — 권장 대비 % 기준 (90% 중심 적정)
+const intakeStatus = computed<{ label: string; tone: 'ok' | 'warn' | 'over' | 'neutral' }>(() => {
   if (!recommendedKcal.value || kcalIn.value === 0) return { label: '입력 전', tone: 'neutral' }
-  const diff = kcalIn.value - recommendedKcal.value
-  if (diff <= -500) return { label: '감량 페이스', tone: 'good' }
-  if (diff <= -150) return { label: '잘 지킴',     tone: 'ok' }
-  if (diff <= 150)  return { label: '보통',        tone: 'neutral' }
-  if (diff <= 500)  return { label: '약간 많음',   tone: 'warn' }
-  return              { label: '많음',             tone: 'over' }
+  const pct = (kcalIn.value / recommendedKcal.value) * 100
+  if (pct < 70)   return { label: '많이 부족', tone: 'warn' }
+  if (pct < 85)   return { label: '부족',     tone: 'neutral' }
+  if (pct <= 110) return { label: '적정',     tone: 'ok' }
+  if (pct <= 130) return { label: '초과',     tone: 'warn' }
+  return            { label: '많이 초과', tone: 'over' }
 })
 
 // 원형 차트(r=50) 둘레 = 2πr ≈ 314.159
@@ -193,8 +193,11 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
       </div>
       <div class="stat">
         <div class="stat-label">Net</div>
-        <div class="stat-value num" :class="{ warn: kcalNet > 0, accent: kcalNet < 0 }">
+        <div class="stat-value num" :class="`tone-${intakeStatus.tone}`">
           {{ kcalNet > 0 ? '+' : '' }}{{ kcalNet }}<span class="stat-unit">kcal</span>
+        </div>
+        <div v-if="recommendedKcal" class="stat-cap" :class="`tone-${intakeStatus.tone}`">
+          {{ intakeStatus.label }} · {{ intakeRatio }}%
         </div>
       </div>
       <div class="stat">
@@ -428,6 +431,17 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
 .stat-unit { font-size: 10px; color: var(--c-text-muted); margin-left: 3px; font-weight: 500; }
 .accent { color: var(--c-accent); }
 .warn { color: var(--c-warn); }
+
+.stat-cap {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+.tone-ok { color: var(--c-accent); }
+.tone-warn { color: var(--c-warn); }
+.tone-over { color: var(--c-danger); }
+.tone-neutral { color: var(--c-text-soft); }
 
 @media (max-width: 720px) {
   .summary { grid-template-columns: repeat(4, 1fr); }

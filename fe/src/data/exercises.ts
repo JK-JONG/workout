@@ -97,6 +97,8 @@ export const EXERCISES: ExerciseItem[] = [
   { id: 'elliptical-machine',  name: '일립티컬',                 category: '유산소', equipment: '유산소기구', met: 5.0, unit: 'time',                          body_part: '전신',                         search_en: 'elliptical machine',              image_url: IMG + '2141-rjtuP6X.gif' },
 
   // ── 매일 맨몸(고정 노출) ──
-  { id: 'bw-lunge',            name: '런지 (맨몸)',              category: '하체', equipment: '맨몸',   met: 5.5, unit: 'reps', duration_per_set: 0.6, body_part: '대퇴사두근, 대둔근',           search_en: 'bodyweight lunge',  emoji: '🦵' },
+  // 런지: 데이터셋에 맨몸 런지 GIF가 없어 덤벨 런지 GIF를 공유 (동작이 거의 같음).
+  // AB 슬라이드: 데이터셋에 정확한 wheel rollout GIF가 없어 emoji fallback 유지.
+  { id: 'bw-lunge',            name: '런지 (맨몸)',              category: '하체', equipment: '맨몸',   met: 5.5, unit: 'reps', duration_per_set: 0.6, body_part: '대퇴사두근, 대둔근',           search_en: 'bodyweight lunge',  emoji: '🦵', image_url: IMG + '0336-RRWFUcw.gif' },
   { id: 'ab-slide',            name: 'AB 슬라이드',              category: '복근', equipment: '맨몸',   met: 5.0, unit: 'reps', duration_per_set: 0.6, body_part: '복직근, 코어',                 search_en: 'ab wheel rollout',  emoji: '🔄' },
 ]
