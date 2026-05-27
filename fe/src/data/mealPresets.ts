@@ -24,6 +24,11 @@ const presetRows: [Slot, number, string[]][] = [
   ['점심', 2, ['chicken-breast-200', 'cabbage-steamed', 'brown-rice-210', 'broccoli-100']],
   ['점심', 3, ['chicken-breast-200', 'pumpkin-half', 'boiled-egg']],
   ['점심', 4, ['tuna-can-small', 'chicken-breast-100', 'brown-rice-210', 'cucumber-pepper']],
+  ['점심', 5, ['school-meal']],
+  ['점심', 6, ['cafeteria-meal']],
+  ['점심', 7, ['baekban']],
+  ['점심', 8, ['bibimbap']],
+  ['점심', 9, ['kimchi-stew']],
   // 저녁
   ['저녁', 1, ['chicken-breast-200', 'brown-rice-210', 'cherry-tomato']],
   ['저녁', 2, ['mackerel-grilled', 'brown-rice-210', 'broccoli-100']],

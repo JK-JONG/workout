@@ -146,6 +146,14 @@ export const useLogStore = defineStore('log', () => {
     return [...body.value].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)[0]
   })
 
+  // 하루 권장 섭취 칼로리 (체중 × 30 단순 추정 — 활동량 보통 기준 TDEE 근사).
+  // 키/나이/성별을 묻지 않는 가벼운 추정치라 ±200 kcal 정도 오차는 정상.
+  const recommendedKcal = computed<number>(() => {
+    const w = latestBody.value?.weightKg ?? weightKg.value
+    if (!w || w <= 0) return 0
+    return Math.round((w * 30) / 10) * 10
+  })
+
   // 선택된 날짜에 신체 기록이 없고 과거에 기록이 있으면 그 날짜로 자동 복제.
   // 운동 kcal 계산용 기준 체중도 함께 갱신.
   // 같은 날짜에 두 번 복제되지 않도록 호출부에서 한 번만 부르면 된다.
@@ -181,6 +189,7 @@ export const useLogStore = defineStore('log', () => {
     kcalIn, kcalOut, kcalNet,
     dailyOutMap, dailyInMap,
     latestBody,
+    recommendedKcal,
     addMeal, addWorkout, addBody,
     removeMeal, removeWorkout, removeBody, updateBody,
     lastWorkoutOf,

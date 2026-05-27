@@ -25,6 +25,13 @@ export const FOODS: FoodItem[] = [
   { id: 'almond-14',        name: '아몬드 14알',               kcal: 100, protein: 4,  carbs: 3,  fat: 9,  category: '견과·유지' },
   { id: 'veggie-salad',     name: '야채샐러드 (드레싱 제외)',  kcal: 80,  protein: 3,  carbs: 12, fat: 2,  category: '채소' },
 
+  // 외식·식당 (점심 위주, 평균 1인분 기준)
+  { id: 'school-meal',      name: '학식 한 끼 (평균)',           kcal: 750, protein: 25, carbs: 100, fat: 22, category: '기타' },
+  { id: 'cafeteria-meal',   name: '구내식당 한 끼 (평균)',       kcal: 800, protein: 28, carbs: 105, fat: 24, category: '기타' },
+  { id: 'baekban',          name: '백반 한 정식 (평균)',         kcal: 850, protein: 25, carbs: 110, fat: 28, category: '기타' },
+  { id: 'bibimbap',         name: '비빔밥 1인분',                kcal: 700, protein: 20, carbs: 95,  fat: 20, category: '기타' },
+  { id: 'kimchi-stew',      name: '김치찌개 백반 1인분',         kcal: 700, protein: 22, carbs: 80,  fat: 26, category: '기타' },
+
   // 점심·저녁 단백질
   { id: 'chicken-breast-100', name: '닭가슴살 100g',           kcal: 165, protein: 31, carbs: 0,  fat: 4,  category: '단백질' },
   { id: 'chicken-breast-200', name: '닭가슴살 200g',           kcal: 330, protein: 62, carbs: 0,  fat: 8,  category: '단백질' },
