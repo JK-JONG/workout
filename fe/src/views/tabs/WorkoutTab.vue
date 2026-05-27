@@ -66,7 +66,8 @@ function pickExercise(e: ExerciseItem) {
       const n = last.sets ?? 4
       setLogs.value = Array.from({ length: n }, () => ({ reps: last.reps ?? 10, weight: last.weight }))
     } else {
-      setLogs.value = Array.from({ length: 4 }, (_, i) => ({ reps: 12, weight: i * 5 }))
+      // 이전 기록 없음 — 무게는 비워두고 사용자가 채우게 함 (0kg 자동 입력 방지)
+      setLogs.value = Array.from({ length: 4 }, () => ({ reps: 12, weight: undefined }))
     }
   } else if (e.unit === 'time') {
     exMinutes.value = last?.minutes ?? 20
@@ -76,7 +77,9 @@ function pickExercise(e: ExerciseItem) {
 }
 function addSet() {
   const tail = setLogs.value[setLogs.value.length - 1]
-  setLogs.value.push({ reps: tail?.reps ?? 12, weight: (tail?.weight ?? 0) + 5 })
+  // 마지막 세트에 무게가 있으면 +5kg, 없으면 그대로 비워둠
+  const nextWeight = tail?.weight != null ? tail.weight + 5 : undefined
+  setLogs.value.push({ reps: tail?.reps ?? 12, weight: nextWeight })
 }
 function removeSet(idx: number) { setLogs.value.splice(idx, 1) }
 function copyDown(idx: number) {
@@ -261,11 +264,41 @@ function fmtDelta(n: number, unit = ''): string {
         </details>
       </div>
 
-      <!-- 우: picker -->
+      <!-- 우: picker (또는 비어있을 때 오늘 운동 기록 sticky) -->
       <div class="split-right">
-        <div v-if="!selectedExercise" class="placeholder">
-          <div class="ph-title">운동을 선택하세요</div>
-          <div class="ph-sub">왼쪽 목록에서 운동을 클릭하면 입력 폼이 열립니다.</div>
+        <div v-if="!selectedExercise" class="today-card">
+          <div class="today-head">
+            <div class="today-title">오늘 운동 기록</div>
+            <span class="muted small">{{ workoutsOfDate.length }}건</span>
+          </div>
+          <ul v-if="workoutsOfDate.length" class="today-list">
+            <li v-for="w in workoutsOfDate" :key="w.id" class="today-item">
+              <div class="today-item-main">
+                <div class="today-item-name">{{ w.exerciseName }}</div>
+                <div class="today-item-sub muted num">
+                  <template v-if="w.unit === 'reps'">
+                    <template v-if="w.setLogs?.length">
+                      {{ w.setLogs.length }}세트 ·
+                      <span v-for="(s, i) in w.setLogs" :key="i">{{ i > 0 ? ' / ' : '' }}{{ s.reps }}{{ s.weight ? '×' + s.weight + 'kg' : '' }}</span>
+                    </template>
+                    <template v-else>
+                      {{ w.sets }}×{{ w.reps }}<span v-if="w.weight"> @{{ w.weight }}kg</span>
+                    </template>
+                  </template>
+                  <template v-else-if="w.unit === 'time'">{{ w.minutes }}분</template>
+                  <template v-else>{{ w.km }} km</template>
+                </div>
+              </div>
+              <div class="today-item-actions">
+                <span class="num accent">−{{ w.kcal }}</span>
+                <button class="icon-btn" @click="log.removeWorkout(w.id)" aria-label="삭제">×</button>
+              </div>
+            </li>
+          </ul>
+          <div v-else class="placeholder">
+            <div class="ph-title">왼쪽에서 운동을 선택해 시작</div>
+            <div class="ph-sub">기록을 추가하면 여기에 표시됩니다.</div>
+          </div>
         </div>
 
         <div v-else class="picker">
@@ -466,6 +499,45 @@ function fmtDelta(n: number, unit = ''): string {
 .placeholder { padding: 28px 16px; text-align: center; background: var(--c-surface-2); border: 1px dashed var(--c-border-strong); border-radius: var(--radius-md); }
 .ph-title { font-size: var(--fs-md); color: var(--c-text-soft); margin-bottom: 4px; }
 .ph-sub { font-size: var(--fs-sm); color: var(--c-text-muted); }
+
+/* ─── 우측 sticky 오늘 운동 기록 (picker 자리 비었을 때) ─── */
+.today-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  box-shadow: var(--shadow-xs);
+  display: grid;
+  gap: 8px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+}
+.today-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--c-border);
+}
+.today-title {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--c-accent-ink);
+  letter-spacing: -0.005em;
+}
+.today-list { display: flex; flex-direction: column; gap: 1px; }
+.today-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-bottom: 1px dashed var(--c-border);
+}
+.today-item:last-child { border-bottom: none; }
+.today-item-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.today-item-name { font-size: var(--fs-sm); font-weight: 500; color: var(--c-text); }
+.today-item-sub { font-size: 11px; line-height: 1.35; }
+.today-item-actions { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 
 .picker { padding: 12px; background: var(--c-surface-2); border: 1px solid var(--c-border); border-radius: var(--radius-md); display: grid; gap: 8px; }
 .picker-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
