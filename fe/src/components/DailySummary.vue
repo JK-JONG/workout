@@ -68,13 +68,15 @@ const intakeRatio = computed(() => {
   return Math.round((kcalIn.value / recommendedKcal.value) * 100)
 })
 
-const intakeStatus = computed<{ label: string; tone: 'ok' | 'warn' | 'over' | 'neutral' }>(() => {
+// 평가서 카드와 동일한 5단계로 통일 (권장 대비 kcal 차이 기준).
+const intakeStatus = computed<{ label: string; tone: 'ok' | 'good' | 'warn' | 'over' | 'neutral' }>(() => {
   if (!recommendedKcal.value || kcalIn.value === 0) return { label: '입력 전', tone: 'neutral' }
-  const r = intakeRatio.value
-  if (r < 60) return { label: '부족', tone: 'warn' }
-  if (r <= 110) return { label: '적정', tone: 'ok' }
-  if (r <= 130) return { label: '약간 초과', tone: 'warn' }
-  return { label: '초과', tone: 'over' }
+  const diff = kcalIn.value - recommendedKcal.value
+  if (diff <= -500) return { label: '감량 페이스', tone: 'good' }
+  if (diff <= -150) return { label: '잘 지킴',     tone: 'ok' }
+  if (diff <= 150)  return { label: '보통',        tone: 'neutral' }
+  if (diff <= 500)  return { label: '약간 많음',   tone: 'warn' }
+  return              { label: '많음',             tone: 'over' }
 })
 
 // 원형 차트(r=50) 둘레 = 2πr ≈ 314.159
@@ -257,9 +259,10 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
   transition: stroke-dashoffset 0.45s ease, stroke 0.2s ease;
 }
 .rec-ring-fill.ok { stroke: var(--c-accent); }
+.rec-ring-fill.good { stroke: var(--c-accent-ink); }
 .rec-ring-fill.warn { stroke: var(--c-warn); }
 .rec-ring-fill.over { stroke: var(--c-danger); }
-.rec-ring-fill.neutral { stroke: var(--c-text-muted); }
+.rec-ring-fill.neutral { stroke: var(--c-text-soft); }
 
 .rec-center {
   position: absolute;
@@ -290,9 +293,10 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
   letter-spacing: 0.02em;
 }
 .rec-status-label.ok { color: var(--c-accent-ink); }
+.rec-status-label.good { color: var(--c-accent-ink); }
 .rec-status-label.warn { color: var(--c-warn); }
 .rec-status-label.over { color: var(--c-danger); }
-.rec-status-label.neutral { color: var(--c-text-muted); }
+.rec-status-label.neutral { color: var(--c-text-soft); }
 
 .rec-label {
   display: inline-flex;

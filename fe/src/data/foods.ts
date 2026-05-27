@@ -31,6 +31,12 @@ export const FOODS: FoodItem[] = [
   { id: 'baekban',          name: '백반 한 정식 (평균)',         kcal: 850, protein: 25, carbs: 110, fat: 28, category: '기타' },
   { id: 'bibimbap',         name: '비빔밥 1인분',                kcal: 700, protein: 20, carbs: 95,  fat: 20, category: '기타' },
   { id: 'kimchi-stew',      name: '김치찌개 백반 1인분',         kcal: 700, protein: 22, carbs: 80,  fat: 26, category: '기타' },
+  { id: 'salady-grain-wrap',name: '샐러디 곡물랩 (평균)',        kcal: 480, protein: 26, carbs: 48, fat: 20, category: '기타' },
+  { id: 'salady-poke',      name: '샐러디 포케 (평균)',          kcal: 520, protein: 30, carbs: 60, fat: 14, category: '기타' },
+  { id: 'salady-chicken-bowl', name: '샐러디 닭가슴살 보울',     kcal: 450, protein: 35, carbs: 40, fat: 14, category: '기타' },
+  { id: 'subway-chicken',   name: '서브웨이 치킨샌드 (15cm)',    kcal: 420, protein: 23, carbs: 50, fat: 14, category: '기타' },
+  { id: 'salad-poke-bowl',  name: '연어 포케 1인분',             kcal: 550, protein: 28, carbs: 60, fat: 20, category: '기타' },
+  { id: 'salad-bowl',       name: '닭가슴살 샐러드볼 (평균)',    kcal: 420, protein: 32, carbs: 28, fat: 18, category: '기타' },
 
   // 점심·저녁 단백질
   { id: 'chicken-breast-100', name: '닭가슴살 100g',           kcal: 165, protein: 31, carbs: 0,  fat: 4,  category: '단백질' },

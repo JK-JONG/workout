@@ -14,8 +14,6 @@ const props = withDefaults(defineProps<{
   colors: () => ['#ebedf0', '#c8e6c9', '#9be9a8', '#40c463', '#216e39'],
 })
 
-const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
-
 function fmt(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -76,8 +74,7 @@ const monthLabels = computed(() => {
 <template>
   <div class="mh">
     <!-- 월 라벨 -->
-    <div class="mh-months" :style="{ gridTemplateColumns: `12px repeat(${weeks}, 1fr)` }">
-      <span></span>
+    <div class="mh-months" :style="{ gridTemplateColumns: `repeat(${weeks}, 1fr)` }">
       <span v-for="col in weeks" :key="col" class="mh-month-cell">
         <template v-for="m in monthLabels" :key="m.col">
           <template v-if="m.col === col - 1">{{ m.label }}</template>
@@ -86,11 +83,6 @@ const monthLabels = computed(() => {
     </div>
 
     <div class="mh-body">
-      <!-- 요일 라벨 (월·수·금만 표시) -->
-      <div class="mh-days">
-        <span v-for="(d, i) in WEEKDAYS" :key="i" class="mh-day" :class="{ show: i === 1 || i === 3 || i === 5 }">{{ d }}</span>
-      </div>
-
       <!-- 그리드: 컬럼 = 주, 셀 = 일 -->
       <div class="mh-grid" :style="{ gridTemplateColumns: `repeat(${weeks}, 1fr)` }">
         <div v-for="col in weeks" :key="col" class="mh-col">
@@ -123,19 +115,10 @@ const monthLabels = computed(() => {
   font-size: 9px;
   color: var(--c-text-muted);
   letter-spacing: -0.02em;
-  padding-left: 16px;
 }
 .mh-month-cell { text-align: left; }
 
 .mh-body { display: flex; gap: 4px; }
-
-.mh-days {
-  display: grid; grid-template-rows: repeat(7, 1fr);
-  font-size: 9px; color: var(--c-text-muted);
-  width: 12px; gap: 2px;
-}
-.mh-day { line-height: 1; opacity: 0; height: 10px; }
-.mh-day.show { opacity: 1; }
 
 .mh-grid { flex: 1; display: grid; gap: 2px; }
 .mh-col { display: grid; grid-template-rows: repeat(7, 1fr); gap: 2px; }

@@ -96,44 +96,76 @@ const balance = computed(() => {
   // 권장 칼로리 정보가 있으면 권장 대비로 평가 (더 정확)
   if (rec > 0) {
     const diff = kcalIn.value - rec
-    if (diff <= -300) return { label: '감량 페이스', tone: 'good',    rule: `섭취 ≤ 권장 − 300` }
-    if (diff < 0)     return { label: '잘 지킴',     tone: 'ok',      rule: `섭취 < 권장` }
-    if (diff <= 200)  return { label: '유지',        tone: 'neutral', rule: `권장 ± 200` }
-    if (diff <= 500)  return { label: '약간 초과',   tone: 'warn',    rule: `권장 + 200~500` }
-    return              { label: '초과',             tone: 'warn',    rule: `권장 + 500 초과` }
+    if (diff <= -500) return { label: '감량 페이스', tone: 'good',    rule: `섭취 ≤ 권장 − 500` }
+    if (diff <= -150) return { label: '잘 지킴',     tone: 'ok',      rule: `권장 − 500 ~ − 150` }
+    if (diff <= 150)  return { label: '보통',        tone: 'neutral', rule: `권장 ± 150` }
+    if (diff <= 500)  return { label: '약간 많음',   tone: 'warn',    rule: `권장 + 150 ~ + 500` }
+    return              { label: '많음',             tone: 'warn',    rule: `권장 + 500 초과` }
   }
   // 권장 정보가 없으면 NET 절대값으로 fallback
-  if (n <= -300) return { label: '감량 페이스', tone: 'good',    rule: 'NET ≤ −300' }
-  if (n < 0)     return { label: '소모 우위',   tone: 'ok',      rule: '−300 < NET < 0' }
-  if (n <= 200)  return { label: '유지',        tone: 'neutral', rule: '0 ≤ NET ≤ 200' }
-  if (n <= 500)  return { label: '약간 초과',   tone: 'warn',    rule: '200 < NET ≤ 500' }
-  return         { label: '초과',               tone: 'warn',    rule: 'NET > 500' }
+  if (n <= -500) return { label: '감량 페이스', tone: 'good',    rule: 'NET ≤ −500' }
+  if (n <= -150) return { label: '잘 지킴',     tone: 'ok',      rule: '−500 < NET ≤ −150' }
+  if (n <= 150)  return { label: '보통',        tone: 'neutral', rule: '−150 < NET ≤ 150' }
+  if (n <= 500)  return { label: '약간 많음',   tone: 'warn',    rule: '150 < NET ≤ 500' }
+  return         { label: '많음',               tone: 'warn',    rule: 'NET > 500' }
 })
 
-// 평가 코멘트 — 사용자가 왜 그런 평가가 나왔는지 한눈에 보게
+// 평가 코멘트 — 운동 부각 → 권장 대비 → 종합 결론
 const comment = computed(() => {
   const lines: string[] = []
-  // 강도
-  if (kcalOut.value > 0) {
-    lines.push(`운동 소모 ${kcalOut.value} kcal → 강도 "${intensity.value.label}" (${intensity.value.rule})`)
+  const hasWorkout = kcalOut.value > 0 || workoutsOfDate.value.length > 0
+  const hasMeal = kcalIn.value > 0
+  const rec = recommendedKcal.value
+  const diff = rec > 0 ? kcalIn.value - rec : 0
+  const ratio = rec > 0 ? Math.round((kcalIn.value / rec) * 100) : 0
+
+  // 1) 운동 요약 (먼저, 부각)
+  if (hasWorkout) {
+    const parts: string[] = []
+    if (totalSets.value > 0) parts.push(`${totalSets.value}세트`)
+    if (totalVolume.value > 0) parts.push(`볼륨 ${totalVolume.value.toLocaleString()} kg·rep`)
+    if (cardioMinutes.value > 0) parts.push(`유산소 ${cardioMinutes.value}분`)
+    if (cardioKm.value > 0) parts.push(`${cardioKm.value}km`)
+    const detail = parts.length ? parts.join(' · ') : '운동 기록'
+    lines.push(`오늘 운동: ${detail} → 소모 ${kcalOut.value} kcal ("${intensity.value.label}")`)
   }
-  // 권장 대비 (가장 중요한 평가 기준)
-  if (recommendedKcal.value > 0 && kcalIn.value > 0) {
-    const diff = kcalIn.value - recommendedKcal.value
-    const ratio = Math.round((kcalIn.value / recommendedKcal.value) * 100)
-    if (diff > 0) {
-      lines.push(`섭취 ${kcalIn.value} kcal · 권장 ${recommendedKcal.value} 대비 +${diff} kcal (${ratio}%)`)
-    } else if (diff < 0) {
-      lines.push(`섭취 ${kcalIn.value} kcal · 권장 ${recommendedKcal.value} 대비 ${diff} kcal (${ratio}%) — 잘 지키는 중`)
+
+  // 2) 식단 vs 권장
+  if (hasMeal) {
+    if (rec > 0) {
+      const sign = diff > 0 ? '+' : ''
+      lines.push(`섭취 ${kcalIn.value.toLocaleString()} kcal · 권장 ${rec.toLocaleString()} 대비 ${sign}${diff} kcal (${ratio}%) → "${balance.value.label}"`)
     } else {
-      lines.push(`섭취 ${kcalIn.value} kcal · 권장 ${recommendedKcal.value} 정확히 도달 (100%)`)
+      lines.push(`섭취 ${kcalIn.value.toLocaleString()} kcal (권장 칼로리는 신체 정보 입력 후 계산)`)
     }
   }
-  // 운동 효과 (NET 의미)
-  if (kcalIn.value > 0 || kcalOut.value > 0) {
-    const sign = kcalNet.value >= 0 ? '+' : ''
-    lines.push(`섭취 ${kcalIn.value} − 소모 ${kcalOut.value} = NET ${sign}${kcalNet.value} kcal → "${balance.value.label}"`)
+
+  // 3) 종합 결론
+  if (!hasWorkout && !hasMeal) {
+    lines.push(`아직 기록 없음`)
+  } else if (hasWorkout && hasMeal && rec > 0) {
+    if (diff <= 150) {
+      lines.push(`잘 한 하루 ✓ 운동도 했고 식단도 지켰음`)
+    } else if (diff <= 500) {
+      lines.push(`운동 ${kcalOut.value} kcal로 잉여 일부 상쇄. 내일은 식단 조금만 줄여보기`)
+    } else {
+      lines.push(`운동 ${kcalOut.value} kcal로 잉여 일부 상쇄. 내일은 식단 조금만 줄여보기`)
+    }
+  } else if (!hasWorkout && hasMeal && rec > 0) {
+    if (diff <= 150) {
+      lines.push(`식단 잘 지킴. 가벼운 활동이라도 추가하면 더 좋음`)
+    } else if (diff > 500) {
+      lines.push(`오늘은 식단 점검이 필요한 날`)
+    } else {
+      lines.push(`식단 조금만 줄이고 가벼운 활동 추가하면 좋음`)
+    }
   }
+  // NET 정보는 작은 보조 줄로 (필요시)
+  if ((hasWorkout && hasMeal) || (hasMeal && !hasWorkout) || (hasWorkout && !hasMeal)) {
+    const sign = kcalNet.value >= 0 ? '+' : ''
+    lines.push(`참고 · NET ${sign}${kcalNet.value.toLocaleString()} kcal (섭취 − 소모)`)
+  }
+
   return lines
 })
 
@@ -158,16 +190,23 @@ function fmtWorkoutDetail(w: (typeof workoutsOfDate.value)[number]) {
   return `${w.km ?? 0}km`
 }
 
-// 도넛 차트 (섭취 % of 권장)
-const RING_CIRC = 2 * Math.PI * 44
+// 도넛 차트 (섭취 % of 권장) — conic-gradient 기반 (html-to-image 호환)
 const intakeRatio = computed(() => {
   if (!recommendedKcal.value) return 0
   return Math.round((kcalIn.value / recommendedKcal.value) * 100)
 })
-const ringOffset = computed(() => {
-  const r = Math.min(intakeRatio.value, 100) / 100
-  return RING_CIRC * (1 - r)
-})
+const ringClamp = computed(() => Math.min(intakeRatio.value, 100))
+const TONE_HEX: Record<string, string> = {
+  ok: '#2f7d4a',
+  good: '#1f5733',
+  warn: '#d97706',
+  strong: '#b45309',
+  neutral: '#5a564d',
+}
+const ringColor = computed(() => TONE_HEX[balance.value.tone] ?? '#2f7d4a')
+const ringStyle = computed(() => ({
+  background: `conic-gradient(${ringColor.value} 0% ${ringClamp.value}%, #ece8df ${ringClamp.value}% 100%)`,
+}))
 </script>
 
 <template>
@@ -192,23 +231,14 @@ const ringOffset = computed(() => {
     <!-- KPI 메인 — 도넛 + 핵심 숫자 -->
     <section class="hero">
       <div class="hero-ring">
-        <svg viewBox="0 0 120 120" class="ring-svg" v-if="recommendedKcal > 0">
-          <circle cx="60" cy="60" r="44" class="ring-track" />
-          <circle
-            cx="60" cy="60" r="44"
-            class="ring-fill"
-            :class="balance.tone"
-            :stroke-dasharray="RING_CIRC"
-            :stroke-dashoffset="ringOffset"
-            transform="rotate(-90 60 60)"
-          />
-        </svg>
+        <div v-if="recommendedKcal > 0" class="donut" :style="ringStyle">
+          <div class="donut-inner">
+            <div class="ring-pct num">{{ intakeRatio }}<span class="ring-pct-unit">%</span></div>
+            <div class="ring-cap">권장 대비</div>
+          </div>
+        </div>
         <div v-else class="ring-empty">
           <span class="ring-empty-icon">🔥</span>
-        </div>
-        <div v-if="recommendedKcal > 0" class="ring-center">
-          <div class="ring-pct num">{{ intakeRatio }}<span class="ring-pct-unit">%</span></div>
-          <div class="ring-cap">권장 대비</div>
         </div>
       </div>
       <div class="hero-grid">
@@ -226,6 +256,9 @@ const ringOffset = computed(() => {
           <div class="hero-k">NET</div>
           <div class="hero-v num">{{ kcalNet > 0 ? '+' : '' }}{{ kcalNet.toLocaleString() }}</div>
           <div class="hero-u">kcal</div>
+          <div v-if="recommendedKcal > 0" class="hero-cap">
+            vs 권장 {{ recommendedKcal.toLocaleString() }} · {{ intakeRatio }}%
+          </div>
         </div>
       </div>
     </section>
@@ -455,30 +488,26 @@ const ringOffset = computed(() => {
   display: grid;
   place-items: center;
 }
-.ring-svg { width: 200px; height: 200px; }
-.ring-track {
-  fill: none;
-  stroke: #ece8df;
-  stroke-width: 12;
+.donut {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
 }
-.ring-fill {
-  fill: none;
-  stroke-width: 12;
-  stroke-linecap: round;
-}
-.ring-fill.ok { stroke: #2f7d4a; }
-.ring-fill.good { stroke: #1f5733; }
-.ring-fill.strong { stroke: #b45309; }
-.ring-fill.warn { stroke: #d97706; }
-.ring-fill.neutral { stroke: #2f7d4a; }
-.ring-center {
+.donut-inner {
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  width: 156px;
+  height: 156px;
+  margin: -78px 0 0 -78px;
+  background: #ffffff;
+  border-radius: 50%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
+  box-shadow: inset 0 0 0 1px #ece8df;
 }
 .ring-pct {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -557,6 +586,16 @@ const ringOffset = computed(() => {
 .hero-u {
   font-size: 13px;
   color: #9a948a;
+  font-weight: 500;
+}
+.hero-cap {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed #ece8df;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  color: #5a564d;
+  letter-spacing: -0.005em;
   font-weight: 500;
 }
 

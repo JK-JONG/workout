@@ -153,6 +153,18 @@ function confirmClearAll() {
   catalog.customFoods = []
 }
 
+function confirmDeleteProfile(name: string) {
+  if (!confirm(`정말 "${name}" 프로필을 영구 삭제할까요?\n운동·식단·신체 기록·내 음식·BMR 정보가 모두 사라지며, 되돌릴 수 없습니다.`)) return
+  const typed = prompt(`확인을 위해 프로필 이름을 그대로 입력해주세요: ${name}`)
+  if (typed === null) return
+  if (typed.trim() !== name) {
+    alert('이름이 일치하지 않습니다. 삭제를 취소했습니다.')
+    return
+  }
+  profile.removeProfile(name)
+  // 현재 프로필을 지웠다면 activeProfile이 ''로 초기화되어 AppGate가 자동으로 다시 뜸
+}
+
 function triggerImport() { fileInput.value?.click() }
 async function onFile(e: Event) {
   importResult.value = null
@@ -415,11 +427,33 @@ function removeCustomFood(id: string) {
       </div>
       <p class="hint">
         현재 프로필의 모든 운동·식단·신체 기록과 내가 등록한 음식이 영구히 삭제됩니다.
-        실행 전 반드시 백업하세요.
+        <b>프로필 자체는 유지</b>되며 데이터만 비웁니다. 실행 전 반드시 백업하세요.
       </p>
       <button class="btn btn-danger" @click="confirmClearAll">
         현재 프로필 데이터 전부 삭제
       </button>
+    </section>
+
+    <!-- 프로필 영구 삭제 -->
+    <section v-if="profile.knownProfiles.length" class="card danger">
+      <div class="card-head">
+        <h2 class="card-title danger-title">프로필 영구 삭제</h2>
+        <span class="muted small">{{ profile.knownProfiles.length }}개</span>
+      </div>
+      <p class="hint">
+        프로필을 영구 삭제하면 운동·식단·신체 기록·내 음식·BMR 정보가 <b>모두 사라집니다</b>.
+        <b>프로필 이름까지</b> 목록에서 제거되며, 되돌릴 수 없습니다. 백업을 먼저 받아두세요.
+      </p>
+      <div class="profile-delete-list">
+        <div v-for="p in profile.knownProfiles" :key="p" class="pd-row">
+          <span class="pd-name">
+            <span class="pd-dot" :style="{ background: colorForProfile(p) }"></span>
+            {{ p }}
+            <span v-if="p === activeProfile" class="pd-tag">현재</span>
+          </span>
+          <button class="btn btn-danger btn-sm" @click="confirmDeleteProfile(p)">삭제</button>
+        </div>
+      </div>
     </section>
 
     <footer class="foot muted small">
@@ -430,7 +464,13 @@ function removeCustomFood(id: string) {
 
 <style scoped>
 /* ─── 페이지 ─── */
-.settings { display: grid; gap: 14px; max-width: 760px; padding-bottom: 24px; }
+.settings {
+  display: grid;
+  gap: 14px;
+  max-width: 760px;
+  margin: 0 auto;
+  padding-bottom: 24px;
+}
 
 .page-head {
   display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
@@ -698,6 +738,36 @@ function removeCustomFood(id: string) {
 .food-name { font-size: var(--fs-md); font-weight: 500; }
 .food-meta { letter-spacing: -0.005em; }
 
+/* ─── 프로필 영구 삭제 리스트 ─── */
+.profile-delete-list { display: grid; gap: 6px; }
+.pd-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+}
+.pd-name {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: var(--fs-sm); font-weight: 600;
+  min-width: 0;
+}
+.pd-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.pd-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 6px;
+  background: var(--c-accent);
+  color: #fff;
+  border-radius: 999px;
+}
+
 /* ─── 버튼 공통 ─── */
 .btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -738,7 +808,7 @@ code {
   min-height: 60vh;
   display: grid;
   place-items: center;
-  padding: 32px 16px;
+  padding: 32px 0;
 }
 .locked-card {
   width: 100%;

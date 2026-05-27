@@ -155,7 +155,9 @@ const bodyChart = computed(() => {
     d.setDate(base.getDate() + i)
     xLabels.push({ x: i, label: `${d.getMonth() + 1}/${d.getDate()}` })
   }
-  xLabels.push({ x: 89, label: '오늘' })
+  const lastBody = new Date(base)
+  lastBody.setDate(base.getDate() + 89)
+  xLabels.push({ x: 89, label: `${lastBody.getMonth() + 1}/${lastBody.getDate()}` })
 
   return { weight, fat, muscle, xLabels, hasAny: byProfile.size > 0 }
 })
@@ -176,11 +178,14 @@ const kcalChart = computed(() => {
   }
   const xLabels: { x: number; label: string }[] = []
   for (let i = 0; i < 30; i += 7) {
+    if (i > 29 - 3) continue   // 마지막 날짜 라벨과 너무 가까우면 생략
     const d = new Date(base)
     d.setDate(base.getDate() + i)
     xLabels.push({ x: i, label: `${d.getMonth() + 1}/${d.getDate()}` })
   }
-  xLabels.push({ x: 29, label: '오늘' })
+  const lastKcal = new Date(base)
+  lastKcal.setDate(base.getDate() + 29)
+  xLabels.push({ x: 29, label: `${lastKcal.getMonth() + 1}/${lastKcal.getDate()}` })
   return { pts, xLabels }
 })
 const kcalSeries = computed(() => [
@@ -293,37 +298,40 @@ const totalCounts = computed(() => ({
       </div>
     </section>
 
-    <!-- 신체 추이 (프로필별 색상) -->
-    <section class="card">
-      <div class="card-head">
-        <h2 class="card-title">신체 추이 · 최근 90일{{ isAll ? ' (사람별 색)' : ` (${selectedProfile})` }}</h2>
-      </div>
-      <div v-if="bodyChart.hasAny" class="charts">
-        <div class="chart-block">
-          <div class="chart-label">몸무게 (kg)</div>
-          <LineChart :series="bodyChart.weight" :x-labels="bodyChart.xLabels" :show-legend="true" unit="kg" />
+    <!-- 신체 추이 + 칼로리 추이 (2-column) -->
+    <div class="chart-grid">
+      <!-- 신체 추이 (프로필별 색상) -->
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title">신체 추이 · 최근 90일{{ isAll ? ' (사람별 색)' : ` (${selectedProfile})` }}</h2>
         </div>
-        <div v-if="bodyChart.fat.length" class="chart-block">
-          <div class="chart-label">체지방률 (%)</div>
-          <LineChart :series="bodyChart.fat" :x-labels="bodyChart.xLabels" :show-legend="false" unit="%" />
+        <div v-if="bodyChart.hasAny" class="charts">
+          <div class="chart-block">
+            <div class="chart-label">몸무게 (kg)</div>
+            <LineChart :series="bodyChart.weight" :x-labels="bodyChart.xLabels" :show-legend="true" unit="kg" />
+          </div>
+          <div v-if="bodyChart.fat.length" class="chart-block">
+            <div class="chart-label">체지방률 (%)</div>
+            <LineChart :series="bodyChart.fat" :x-labels="bodyChart.xLabels" :show-legend="false" unit="%" />
+          </div>
+          <div v-if="bodyChart.muscle.length" class="chart-block">
+            <div class="chart-label">골격근량 (kg)</div>
+            <LineChart :series="bodyChart.muscle" :x-labels="bodyChart.xLabels" :show-legend="false" unit="kg" />
+          </div>
         </div>
-        <div v-if="bodyChart.muscle.length" class="chart-block">
-          <div class="chart-label">골격근량 (kg)</div>
-          <LineChart :series="bodyChart.muscle" :x-labels="bodyChart.xLabels" :show-legend="false" unit="kg" />
-        </div>
-      </div>
-      <div v-else class="empty">아직 신체 기록이 없습니다.</div>
-    </section>
+        <div v-else class="empty">아직 신체 기록이 없습니다.</div>
+      </section>
 
-    <!-- 칼로리 추이 -->
-    <section class="card">
-      <div class="card-head">
-        <h2 class="card-title">칼로리 추이 · 최근 30일 ({{ isAll ? '합산' : selectedProfile }})</h2>
-      </div>
-      <div class="chart-block">
-        <LineChart :series="kcalSeries" :x-labels="kcalChart.xLabels" unit="kcal" />
-      </div>
-    </section>
+      <!-- 칼로리 추이 -->
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title">칼로리 추이 · 최근 30일 ({{ isAll ? '합산' : selectedProfile }})</h2>
+        </div>
+        <div class="chart-block">
+          <LineChart :series="kcalSeries" :x-labels="kcalChart.xLabels" unit="kcal" />
+        </div>
+      </section>
+    </div>
 
     <!-- 부위별 빈도 -->
     <section class="card">
@@ -427,14 +435,19 @@ const totalCounts = computed(() => ({
 .ppa-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .ppa-name { font-size: var(--fs-sm); font-weight: 500; color: var(--c-text); flex: 1; }
 
-.heatmap-grid { display: grid; gap: 14px; }
-.heatmap-grid > div { max-width: 720px; }     /* 52주 잔디 칸이 너무 커지지 않도록 */
+.heatmap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.heatmap-grid > div { min-width: 0; }    /* grid 내 SVG 가로 오버플로 방지 */
 .heatmap-label { margin-bottom: 4px; }
+@media (max-width: 920px) { .heatmap-grid { grid-template-columns: 1fr; } }
+
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.chart-grid > .card { min-width: 0; }
+@media (max-width: 920px) { .chart-grid { grid-template-columns: 1fr; } }
 
 .charts { display: grid; gap: 14px; }
 .chart-block {
   display: grid; gap: 4px;
-  max-width: 720px;     /* 차트 폭 제한: SVG 텍스트 과대 확대 방지 */
+  min-width: 0;
 }
 .chart-label { font-size: var(--fs-xs); color: var(--c-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 
