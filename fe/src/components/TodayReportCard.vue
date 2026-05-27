@@ -91,7 +91,18 @@ const intensity = computed(() => {
 
 const balance = computed(() => {
   const n = kcalNet.value
+  const rec = recommendedKcal.value
   if (kcalIn.value === 0 && kcalOut.value === 0) return { label: '기록 없음', tone: 'neutral', rule: '입력 없음' }
+  // 권장 칼로리 정보가 있으면 권장 대비로 평가 (더 정확)
+  if (rec > 0) {
+    const diff = kcalIn.value - rec
+    if (diff <= -300) return { label: '감량 페이스', tone: 'good',    rule: `섭취 ≤ 권장 − 300` }
+    if (diff < 0)     return { label: '잘 지킴',     tone: 'ok',      rule: `섭취 < 권장` }
+    if (diff <= 200)  return { label: '유지',        tone: 'neutral', rule: `권장 ± 200` }
+    if (diff <= 500)  return { label: '약간 초과',   tone: 'warn',    rule: `권장 + 200~500` }
+    return              { label: '초과',             tone: 'warn',    rule: `권장 + 500 초과` }
+  }
+  // 권장 정보가 없으면 NET 절대값으로 fallback
   if (n <= -300) return { label: '감량 페이스', tone: 'good',    rule: 'NET ≤ −300' }
   if (n < 0)     return { label: '소모 우위',   tone: 'ok',      rule: '−300 < NET < 0' }
   if (n <= 200)  return { label: '유지',        tone: 'neutral', rule: '0 ≤ NET ≤ 200' }
@@ -106,22 +117,22 @@ const comment = computed(() => {
   if (kcalOut.value > 0) {
     lines.push(`운동 소모 ${kcalOut.value} kcal → 강도 "${intensity.value.label}" (${intensity.value.rule})`)
   }
-  // 밸런스
-  if (kcalIn.value > 0 || kcalOut.value > 0) {
-    const sign = kcalNet.value >= 0 ? '+' : ''
-    lines.push(`섭취 ${kcalIn.value} − 소모 ${kcalOut.value} = NET ${sign}${kcalNet.value} kcal → "${balance.value.label}"`)
-  }
-  // 권장 대비
+  // 권장 대비 (가장 중요한 평가 기준)
   if (recommendedKcal.value > 0 && kcalIn.value > 0) {
     const diff = kcalIn.value - recommendedKcal.value
     const ratio = Math.round((kcalIn.value / recommendedKcal.value) * 100)
     if (diff > 0) {
-      lines.push(`권장 ${recommendedKcal.value} kcal 대비 +${diff} kcal (${ratio}%) — 권장량 초과`)
+      lines.push(`섭취 ${kcalIn.value} kcal · 권장 ${recommendedKcal.value} 대비 +${diff} kcal (${ratio}%)`)
     } else if (diff < 0) {
-      lines.push(`권장 ${recommendedKcal.value} kcal 대비 ${diff} kcal (${ratio}%) — 권장량 미만`)
+      lines.push(`섭취 ${kcalIn.value} kcal · 권장 ${recommendedKcal.value} 대비 ${diff} kcal (${ratio}%) — 잘 지키는 중`)
     } else {
-      lines.push(`권장 ${recommendedKcal.value} kcal 정확히 도달 (100%)`)
+      lines.push(`섭취 ${kcalIn.value} kcal · 권장 ${recommendedKcal.value} 정확히 도달 (100%)`)
     }
+  }
+  // 운동 효과 (NET 의미)
+  if (kcalIn.value > 0 || kcalOut.value > 0) {
+    const sign = kcalNet.value >= 0 ? '+' : ''
+    lines.push(`섭취 ${kcalIn.value} − 소모 ${kcalOut.value} = NET ${sign}${kcalNet.value} kcal → "${balance.value.label}"`)
   }
   return lines
 })
@@ -447,19 +458,19 @@ const ringOffset = computed(() => {
 .ring-svg { width: 200px; height: 200px; }
 .ring-track {
   fill: none;
-  stroke: #f1ede4;
-  stroke-width: 10;
+  stroke: #ece8df;
+  stroke-width: 12;
 }
 .ring-fill {
   fill: none;
-  stroke-width: 10;
+  stroke-width: 12;
   stroke-linecap: round;
 }
 .ring-fill.ok { stroke: #2f7d4a; }
 .ring-fill.good { stroke: #1f5733; }
 .ring-fill.strong { stroke: #b45309; }
-.ring-fill.warn { stroke: #b45309; }
-.ring-fill.neutral { stroke: #9a948a; }
+.ring-fill.warn { stroke: #d97706; }
+.ring-fill.neutral { stroke: #2f7d4a; }
 .ring-center {
   position: absolute;
   inset: 0;
@@ -471,25 +482,25 @@ const ringOffset = computed(() => {
 }
 .ring-pct {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 44px;
-  font-weight: 700;
+  font-size: 48px;
+  font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1;
   color: #1a1a18;
 }
 .ring-pct-unit {
-  font-size: 18px;
-  color: #9a948a;
+  font-size: 20px;
+  color: #5a564d;
   margin-left: 2px;
-  font-weight: 600;
+  font-weight: 700;
 }
 .ring-cap {
-  margin-top: 4px;
+  margin-top: 6px;
   font-size: 11px;
   color: #5a564d;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  font-weight: 600;
+  font-weight: 700;
 }
 .ring-empty {
   width: 200px;
@@ -512,22 +523,22 @@ const ringOffset = computed(() => {
   flex-direction: column;
   gap: 4px;
   padding: 18px 20px;
-  background: #fbfaf7;
+  background: #ffffff;
   border: 1px solid #ece8df;
   border-radius: 12px;
   position: relative;
 }
 .hero-cell.strong {
-  background: linear-gradient(135deg, #1a1a18 0%, #2a2a26 100%);
-  border-color: #1a1a18;
-  color: #fbfaf7;
+  background: #fbfaf7;
+  border-color: #d9d3c4;
+  border-left: 4px solid #2f7d4a;
 }
-.hero-cell.strong .hero-k, .hero-cell.strong .hero-u { color: #b8b4ab; }
-.hero-cell.good { background: linear-gradient(135deg, #dff0e4, #c8e6cf); border-color: #b8d9c2; }
+.hero-cell.strong .hero-v { color: #1f5733; }
 .hero-cell.good .hero-v { color: #1f5733; }
-.hero-cell.warn { background: linear-gradient(135deg, #fbe9d6, #f6dcb5); border-color: #e8c79a; }
-.hero-cell.warn .hero-v { color: #b45309; }
+.hero-cell.warn { border-left: 4px solid #d97706; }
+.hero-cell.warn .hero-v { color: #d97706; }
 .hero-cell.ok .hero-v { color: #2f7d4a; }
+.hero-cell.neutral .hero-v { color: #1a1a18; }
 
 .hero-k {
   font-size: 13px;

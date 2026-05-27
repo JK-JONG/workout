@@ -6,6 +6,8 @@ import { useProfileStore } from '@/stores/profile'
 import { useLogStore } from '@/stores/log'
 import { useCatalogStore } from '@/stores/catalog'
 import { useJsonl, type ImportResult } from '@/composables/useJsonl'
+import { colorForProfile } from '@/composables/useAllProfilesData'
+import type { BodyEntry, Sex } from '@/stores/log'
 
 const ALLOWED_PROFILE = '박종권'
 const ADMIN_PW = '45121006'
@@ -51,6 +53,80 @@ const stats = computed(() => ({
   body: body.value.length,
   customFoods: customFoods.value.length,
 }))
+
+// ── 전체 프로필 정보 (localStorage 직접 읽기) ──
+interface ProfileInfo {
+  name: string
+  color: string
+  sex: Sex | ''
+  age: number | null
+  height: number | null
+  weight: number | null
+  activity: number | null
+  tdee: number | null
+  records: number
+}
+function readKey<T>(prof: string, key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(`wt.p.${prof}.${key}`)
+    return raw ? (JSON.parse(raw) as T) : fallback
+  } catch { return fallback }
+}
+const allProfilesInfo = computed<ProfileInfo[]>(() => {
+  const thisYear = new Date().getFullYear()
+  return profile.knownProfiles.map(name => {
+    let sx: Sex | '' = ''
+    let by: number | null = null
+    let act: number | null = null
+    let bodyArr: BodyEntry[] = []
+    let workoutCount = 0
+    let mealCount = 0
+    let bodyCount = 0
+    if (name === activeProfile.value) {
+      sx = (log.sex as Sex | '') || ''
+      by = log.birthYear
+      act = log.activityLevel
+      bodyArr = body.value
+      workoutCount = workouts.value.length
+      mealCount = meals.value.length
+      bodyCount = body.value.length
+    } else {
+      sx = readKey<Sex | ''>(name, 'sex', '')
+      by = readKey<number | null>(name, 'birthYear', null)
+      act = readKey<number | null>(name, 'activityLevel', null)
+      bodyArr = readKey<BodyEntry[]>(name, 'body', [])
+      workoutCount = readKey<unknown[]>(name, 'workouts', []).length
+      mealCount = readKey<unknown[]>(name, 'meals', []).length
+      bodyCount = bodyArr.length
+    }
+    const latest = bodyArr.length
+      ? [...bodyArr].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)[0]
+      : null
+    const age = by ? thisYear - by : null
+    const weight = latest?.weightKg ?? null
+    const height = latest?.heightCm ?? null
+    let tdee: number | null = null
+    if (weight && height && age && sx && act) {
+      const bmr = sx === 'male'
+        ? 10 * weight + 6.25 * height - 5 * age + 5
+        : 10 * weight + 6.25 * height - 5 * age - 161
+      tdee = Math.round((bmr * act) / 10) * 10
+    } else if (weight) {
+      tdee = Math.round((weight * 30) / 10) * 10
+    }
+    return {
+      name,
+      color: colorForProfile(name),
+      sex: sx,
+      age,
+      height,
+      weight,
+      activity: act,
+      tdee,
+      records: workoutCount + mealCount + bodyCount,
+    }
+  })
+})
 
 // ── 새 프로필 ───────────────────────────────────────────
 const newProfileName = ref('')
@@ -184,6 +260,46 @@ function removeCustomFood(id: string) {
       <div class="actions">
         <button class="btn btn-ghost" @click="logout">프로필 전환</button>
         <button class="btn btn-ghost" @click="lockApp">전체 잠금</button>
+      </div>
+    </section>
+
+    <!-- 모든 프로필 정보 -->
+    <section v-if="allProfilesInfo.length" class="card">
+      <div class="card-head">
+        <h2 class="card-title">전체 프로필 정보</h2>
+        <span class="muted small">{{ allProfilesInfo.length }}명</span>
+      </div>
+      <p class="hint">이 기기에 등록된 프로필별 신체·계산 정보입니다. 비어있는 칸은 해당 프로필이 아직 입력하지 않은 항목입니다.</p>
+      <div class="profile-table">
+        <div class="pt-head">
+          <span>프로필</span>
+          <span>성별</span>
+          <span>나이</span>
+          <span>신장</span>
+          <span>체중</span>
+          <span>활동×</span>
+          <span>권장 kcal</span>
+          <span>기록 수</span>
+        </div>
+        <div
+          v-for="p in allProfilesInfo"
+          :key="p.name"
+          class="pt-row"
+          :class="{ 'pt-row-self': p.name === activeProfile }"
+        >
+          <span class="pt-name">
+            <span class="pt-dot" :style="{ background: p.color }"></span>
+            {{ p.name }}
+            <span v-if="p.name === activeProfile" class="pt-tag">현재</span>
+          </span>
+          <span :class="{ missing: !p.sex }">{{ p.sex === 'male' ? '남' : p.sex === 'female' ? '여' : '—' }}</span>
+          <span :class="{ missing: !p.age }">{{ p.age ? p.age + '세' : '—' }}</span>
+          <span :class="{ missing: !p.height }">{{ p.height ? p.height + 'cm' : '—' }}</span>
+          <span :class="{ missing: !p.weight }">{{ p.weight ? p.weight + 'kg' : '—' }}</span>
+          <span :class="{ missing: !p.activity }">{{ p.activity ? '×' + p.activity.toFixed(2) : '—' }}</span>
+          <span :class="{ missing: !p.tdee }" class="num">{{ p.tdee ? p.tdee.toLocaleString() : '—' }}</span>
+          <span class="muted num">{{ p.records }}건</span>
+        </div>
       </div>
     </section>
 
@@ -417,6 +533,78 @@ function removeCustomFood(id: string) {
 }
 
 .actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; border-top: 1px dashed var(--c-border); }
+
+/* ─── 전체 프로필 정보 테이블 ─── */
+.profile-table {
+  display: grid;
+  gap: 1px;
+  background: var(--c-border);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  font-size: var(--fs-sm);
+}
+.pt-head, .pt-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) 44px 56px 64px 64px 56px 80px 60px;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--c-surface);
+}
+.pt-head {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--c-text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--c-surface-2);
+}
+.pt-row {
+  font-family: var(--font-num);
+  color: var(--c-text);
+  transition: background 0.12s;
+}
+.pt-row:hover { background: var(--c-surface-2); }
+.pt-row-self { background: var(--c-accent-soft); }
+.pt-row-self:hover { background: #c8e6cf; }
+.pt-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  min-width: 0;
+}
+.pt-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.pt-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 6px;
+  background: var(--c-accent);
+  color: #fff;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+}
+.pt-row .missing {
+  color: var(--c-text-muted);
+  opacity: 0.55;
+}
+@media (max-width: 720px) {
+  .profile-table {
+    font-size: var(--fs-xs);
+    overflow-x: auto;
+  }
+  .pt-head, .pt-row {
+    grid-template-columns: minmax(140px, 1.6fr) 38px 48px 56px 56px 50px 70px 50px;
+    min-width: 600px;
+  }
+}
 
 /* ─── 새 프로필 ─── */
 .new-profile { display: grid; grid-template-columns: 1fr auto; gap: 8px; }

@@ -8,21 +8,34 @@ import BodyOnboardingForm from '@/components/BodyOnboardingForm.vue'
 const profile = useProfileStore()
 const log = useLogStore()
 const { unlocked, activeProfile, knownProfiles } = storeToRefs(profile)
-const { body } = storeToRefs(log)
+const { body, sex, birthYear, latestBody } = storeToRefs(log)
 
-// 'body' 단계는 새 프로필을 생성한 직후에만 강제. 기존 프로필을 다시 골랐을 땐 데이터가
-// 이미 있을 수 있으므로 비어있어도 게이트를 막지 않고, RecordView 쪽 모달이 처리한다.
+// 새 프로필 강제 신체 입력 모드
 const needsBodyForNewProfile = ref(false)
+// 기존 프로필인데 BMR 정보가 비어있는 경우 자동 보완 모드 (한 번 dismiss하면 더 안 띄움)
+const dismissedMeta = ref(false)
 
-const stage = computed<'password' | 'profile' | 'body' | 'done'>(() => {
+const needsMetaUpdate = computed(() => {
+  if (!activeProfile.value) return false
+  if (body.value.length === 0) return false // body 자체가 비면 'body' 단계에서 처리됨
+  if (!sex.value || !birthYear.value) return true
+  if (!latestBody.value?.heightCm) return true
+  return false
+})
+
+const stage = computed<'password' | 'profile' | 'body' | 'meta' | 'done'>(() => {
   if (!unlocked.value) return 'password'
   if (!activeProfile.value) return 'profile'
   if (needsBodyForNewProfile.value && body.value.length === 0) return 'body'
+  if (needsMetaUpdate.value && !dismissedMeta.value) return 'meta'
   return 'done'
 })
 
-// 프로필이 바뀌면 강제 모드 자동 해제
-watch(activeProfile, () => { needsBodyForNewProfile.value = false })
+// 프로필이 바뀌면 강제/dismiss 모드 자동 해제
+watch(activeProfile, () => {
+  needsBodyForNewProfile.value = false
+  dismissedMeta.value = false
+})
 
 const pwInput = ref('')
 const pwError = ref('')
@@ -113,13 +126,29 @@ function pickProfile(name: string) {
       <div v-else-if="stage === 'body'" class="gate-form">
         <label class="gate-label">신체 정보 <span class="req">필수</span></label>
         <p class="gate-hint">
-          <b>{{ activeProfile }}</b> 님의 시작 체중을 입력해주세요. 운동 칼로리 계산 기준이 됩니다.
-          체지방·근육량은 나중에 추가해도 되지만 체중은 시작 시 꼭 필요합니다.
+          <b>{{ activeProfile }}</b> 님의 신체 정보를 입력해주세요. 운동 칼로리·권장 섭취 계산 기준이 됩니다.
+          체지방·근육량은 나중에 추가해도 되지만 체중·신장·성별·출생연도는 시작 시 꼭 필요합니다.
         </p>
         <BodyOnboardingForm
           submit-label="시작하기"
           :show-skip="false"
           @done="needsBodyForNewProfile = false"
+        />
+      </div>
+
+      <!-- 기존 프로필인데 BMR 계산용 정보 비어있음 — 보완 단계 -->
+      <div v-else-if="stage === 'meta'" class="gate-form">
+        <label class="gate-label">프로필 정보 보완 <span class="req">필요</span></label>
+        <p class="gate-hint">
+          정확한 권장 칼로리 계산(Mifflin-St Jeor 공식)을 위해 추가 정보가 필요합니다.
+          한 번만 입력하면 다음부터는 안 물어봅니다.
+        </p>
+        <BodyOnboardingForm
+          submit-label="저장하고 시작"
+          skip-label="나중에"
+          :show-skip="true"
+          @done="dismissedMeta = true"
+          @skip="dismissedMeta = true"
         />
       </div>
     </div>
@@ -135,7 +164,7 @@ function pickProfile(name: string) {
   background: var(--c-bg);
 }
 .gate-card {
-  width: 100%; max-width: 360px;
+  width: 100%; max-width: 440px;
   padding: 24px 22px 22px;
   background: var(--c-surface);
   border: 1px solid var(--c-border);
