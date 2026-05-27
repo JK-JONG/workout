@@ -6,14 +6,41 @@ import { useLogStore } from '@/stores/log'
 const log = useLogStore()
 const { kcalIn, kcalOut, kcalNet, recommendedKcal, recommendedKcalDetail } = storeToRefs(log)
 
-// 계산식 팝오버
+// 계산식 팝오버 — fixed로 띄워 컨테이너 overflow 영향 받지 않게
 const showFormula = ref(false)
-const formulaRef = ref<HTMLElement | null>(null)
-function toggleFormula() { showFormula.value = !showFormula.value }
+const popoverRef = ref<HTMLElement | null>(null)
+const popoverStyle = ref<{ top: string; left: string }>({ top: '0', left: '0' })
+
+function toggleFormula(ev: MouseEvent) {
+  if (showFormula.value) {
+    showFormula.value = false
+    return
+  }
+  const btn = ev.currentTarget as HTMLElement
+  const rect = btn.getBoundingClientRect()
+  const popoverWidth = 320
+  const margin = 12
+  let left = rect.left
+  // viewport 우측 경계 안에 들어오게 클램프
+  if (left + popoverWidth + margin > window.innerWidth) {
+    left = Math.max(margin, window.innerWidth - popoverWidth - margin)
+  }
+  popoverStyle.value = {
+    top: `${rect.bottom + 8}px`,
+    left: `${left}px`,
+  }
+  showFormula.value = true
+}
+
 function onDocClick(ev: MouseEvent) {
   if (!showFormula.value) return
-  const el = formulaRef.value
-  if (el && !el.contains(ev.target as Node)) showFormula.value = false
+  const el = popoverRef.value
+  const target = ev.target as Node
+  if (el && !el.contains(target)) {
+    // ?버튼 자체는 toggleFormula가 처리하니 무시
+    const btnEl = (target as HTMLElement).closest?.('.info-btn')
+    if (!btnEl) showFormula.value = false
+  }
 }
 if (typeof document !== 'undefined') {
   document.addEventListener('mousedown', onDocClick)
@@ -85,7 +112,7 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
           <div class="rec-status-label" :class="intakeStatus.tone">{{ intakeStatus.label }}</div>
         </div>
       </div>
-      <div class="ring-meta" ref="formulaRef">
+      <div class="ring-meta">
         <div class="rec-label">
           <span>권장 {{ recommendedKcal.toLocaleString() }} kcal</span>
           <button
@@ -101,45 +128,56 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
           <template v-if="remain > 0">{{ remain.toLocaleString() }} kcal 남음</template>
           <template v-else>{{ Math.abs(remain).toLocaleString() }} kcal 초과</template>
         </div>
-
-        <div v-if="showFormula && recommendedKcalDetail" class="formula-pop" role="dialog">
-          <div class="formula-head">
-            <span>{{ recommendedKcalDetail.method === 'mifflin' ? 'Mifflin-St Jeor 공식' : '간이 추정 (체중 × 30)' }}</span>
-            <button type="button" class="formula-x" @click="showFormula = false" aria-label="닫기">×</button>
-          </div>
-          <ul v-if="recommendedKcalDetail.method === 'mifflin'" class="formula-list num">
-            <li><span>체중</span><b>{{ recommendedKcalDetail.weightKg }} kg</b></li>
-            <li><span>신장</span><b>{{ recommendedKcalDetail.heightCm }} cm</b></li>
-            <li><span>나이</span><b>{{ recommendedKcalDetail.age }}세</b></li>
-            <li><span>성별</span><b>{{ recommendedKcalDetail.sex === 'male' ? '남성' : '여성' }}</b></li>
-            <li><span>활동량</span><b>×{{ recommendedKcalDetail.activity?.toFixed(2) }} ({{ activityLabel }})</b></li>
-            <li class="formula-eq">
-              <span>BMR</span>
-              <b>{{ recommendedKcalDetail.bmr?.toLocaleString() }} kcal</b>
-            </li>
-            <li class="formula-eq strong">
-              <span>TDEE</span>
-              <b>{{ recommendedKcalDetail.tdee.toLocaleString() }} kcal</b>
-            </li>
-          </ul>
-          <ul v-else class="formula-list num">
-            <li><span>체중</span><b>{{ recommendedKcalDetail.weightKg }} kg</b></li>
-            <li class="formula-eq strong">
-              <span>권장</span>
-              <b>{{ recommendedKcalDetail.tdee.toLocaleString() }} kcal</b>
-            </li>
-          </ul>
-          <div class="formula-foot muted small">
-            <template v-if="recommendedKcalDetail.method === 'mifflin'">
-              BMR(남) = 10·W + 6.25·H − 5·age + 5 / BMR(여) = 10·W + 6.25·H − 5·age − 161 · TDEE = BMR × 활동계수
-            </template>
-            <template v-else>
-              신장·나이·성별을 입력하면 더 정확한 Mifflin-St Jeor 공식으로 계산됩니다.
-            </template>
-          </div>
-        </div>
       </div>
     </div>
+
+    <!-- 계산식 팝오버 (fixed, Teleport body) -->
+    <Teleport to="body">
+      <div
+        v-if="showFormula && recommendedKcalDetail"
+        ref="popoverRef"
+        class="formula-pop"
+        role="dialog"
+        :style="popoverStyle"
+      >
+        <div class="formula-head">
+          <span>{{ recommendedKcalDetail.method === 'mifflin' ? 'Mifflin-St Jeor 공식' : '간이 추정 (체중 × 30)' }}</span>
+          <button type="button" class="formula-x" @click="showFormula = false" aria-label="닫기">×</button>
+        </div>
+        <ul v-if="recommendedKcalDetail.method === 'mifflin'" class="formula-list num">
+          <li><span>체중</span><b>{{ recommendedKcalDetail.weightKg }} kg</b></li>
+          <li><span>신장</span><b>{{ recommendedKcalDetail.heightCm }} cm</b></li>
+          <li><span>나이</span><b>{{ recommendedKcalDetail.age }}세</b></li>
+          <li><span>성별</span><b>{{ recommendedKcalDetail.sex === 'male' ? '남성' : '여성' }}</b></li>
+          <li><span>활동량</span><b>×{{ recommendedKcalDetail.activity?.toFixed(2) }} ({{ activityLabel }})</b></li>
+          <li class="formula-eq">
+            <span>BMR</span>
+            <b>{{ recommendedKcalDetail.bmr?.toLocaleString() }} kcal</b>
+          </li>
+          <li class="formula-eq strong">
+            <span>TDEE</span>
+            <b>{{ recommendedKcalDetail.tdee.toLocaleString() }} kcal</b>
+          </li>
+        </ul>
+        <ul v-else class="formula-list num">
+          <li><span>체중</span><b>{{ recommendedKcalDetail.weightKg }} kg</b></li>
+          <li class="formula-eq strong">
+            <span>권장</span>
+            <b>{{ recommendedKcalDetail.tdee.toLocaleString() }} kcal</b>
+          </li>
+        </ul>
+        <div class="formula-foot muted small">
+          <template v-if="recommendedKcalDetail.method === 'mifflin'">
+            BMR(남) = 10·W + 6.25·H − 5·age + 5<br>
+            BMR(여) = 10·W + 6.25·H − 5·age − 161<br>
+            TDEE = BMR × 활동계수
+          </template>
+          <template v-else>
+            신장·나이·성별을 입력하면 더 정확한 Mifflin-St Jeor 공식으로 계산됩니다.
+          </template>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- 우측: 4칸 stat -->
     <div class="summary">
@@ -286,13 +324,11 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
   border-color: var(--c-accent);
 }
 
-.ring-meta { position: relative; }
 .formula-pop {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 30;
-  width: 280px;
+  position: fixed;
+  z-index: 200;
+  width: 320px;
+  max-width: calc(100vw - 24px);
   padding: 12px 14px;
   background: var(--c-surface);
   border: 1px solid var(--c-border-strong);
