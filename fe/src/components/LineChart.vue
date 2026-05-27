@@ -77,8 +77,8 @@ const layout = computed(() => {
       </g>
       <!-- 라인 + 점 -->
       <g v-for="s in layout.series" :key="s.label">
-        <path :d="s.path" :stroke="s.color" fill="none" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" />
-        <circle v-for="(d, i) in s.dots" :key="i" :cx="d.x" :cy="d.y" r="2.3" :fill="s.color" />
+        <path :d="s.path" :stroke="s.color" fill="none" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" />
+        <circle v-for="(d, i) in s.dots" :key="i" :cx="d.x" :cy="d.y" r="2.8" :fill="s.color" />
       </g>
       <!-- x 라벨 -->
       <g class="lc-x">

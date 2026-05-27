@@ -55,12 +55,20 @@ const activityLabel = computed(() => {
   return '낮음'
 })
 
+// 운동 강도: 일일 운동 소모 kcal 절대값 기준 5단계
 function intensityLabel(kcal: number): string {
   if (kcal === 0) return '없음'
-  if (kcal < 100) return '가벼움'
-  if (kcal < 250) return '보통'
-  if (kcal < 500) return '강함'
-  return '매우 강함'
+  if (kcal < 100) return '가볍게'
+  if (kcal < 250) return '꾸준히'
+  if (kcal < 500) return '강하게'
+  return '고강도'
+}
+function intensityRule(kcal: number): string {
+  if (kcal === 0) return '운동 없음'
+  if (kcal < 100) return '< 100 kcal'
+  if (kcal < 250) return '100~249 kcal'
+  if (kcal < 500) return '250~499 kcal'
+  return '≥ 500 kcal'
 }
 
 const intakeRatio = computed(() => {
@@ -220,6 +228,7 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
       <div class="stat">
         <div class="stat-label">오늘 강도</div>
         <div class="stat-value-text">{{ intensityLabel(kcalOut) }}</div>
+        <div class="stat-cap muted">{{ intensityRule(kcalOut) }}</div>
       </div>
     </div>
   </section>

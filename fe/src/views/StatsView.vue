@@ -261,9 +261,10 @@ const kcalChart = computed(() => {
   xLabels.push({ x: 29, label: `${lastKcal.getMonth() + 1}/${lastKcal.getDate()}` })
   return { pts, xLabels }
 })
+// 소모(그린) / 섭취(빨강) — 대비 확실히 보이도록 채도 높은 색상으로 분리
 const kcalSeries = computed(() => [
-  { label: '소모', color: '#2f7d4a', points: kcalChart.value.pts.map(p => ({ x: p.idx, y: p.out })) },
-  { label: '섭취', color: '#b45309', points: kcalChart.value.pts.map(p => ({ x: p.idx, y: p.in })) },
+  { label: '소모', color: '#16a34a', points: kcalChart.value.pts.map(p => ({ x: p.idx, y: p.out })) },
+  { label: '섭취', color: '#dc2626', points: kcalChart.value.pts.map(p => ({ x: p.idx, y: p.in })) },
 ])
 
 // ── PR (모든 프로필 합산, 사람도 표시) ──
