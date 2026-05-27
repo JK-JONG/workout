@@ -145,10 +145,8 @@ function pickProfile(name: string) {
         </p>
         <BodyOnboardingForm
           submit-label="저장하고 시작"
-          skip-label="나중에"
-          :show-skip="true"
+          :show-skip="false"
           @done="dismissedMeta = true"
-          @skip="dismissedMeta = true"
         />
       </div>
     </div>

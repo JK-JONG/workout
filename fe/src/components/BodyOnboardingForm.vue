@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useLogStore, type Sex } from '@/stores/log'
+import { useProfileStore } from '@/stores/profile'
 
 const props = defineProps<{
   submitLabel?: string
@@ -14,6 +15,8 @@ const emit = defineEmits<{
 }>()
 
 const log = useLogStore()
+const profile = useProfileStore()
+const { activeProfile } = storeToRefs(profile)
 const {
   selectedDate,
   sex: storedSex,
@@ -70,6 +73,17 @@ function submit() {
 
 <template>
   <form class="body-form" @submit.prevent="submit">
+    <label class="field">
+      <span class="label">이름 (현재 프로필)</span>
+      <input
+        class="input name-input"
+        type="text"
+        :value="activeProfile"
+        readonly
+        aria-readonly="true"
+        tabindex="-1"
+      />
+    </label>
     <div class="row two">
       <label class="field">
         <span class="label">체중 (kg) <span class="req">*</span></span>
@@ -178,6 +192,14 @@ function submit() {
   transition: border 0.15s, box-shadow 0.15s;
 }
 .input:focus { border-color: var(--c-accent); box-shadow: 0 0 0 3px var(--c-accent-soft); outline: none; }
+.name-input {
+  background: var(--c-accent-soft);
+  color: var(--c-accent-ink);
+  font-weight: 700;
+  border-color: var(--c-accent);
+  cursor: default;
+}
+.name-input:focus { box-shadow: none; }
 
 .seg {
   display: grid;

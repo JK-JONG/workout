@@ -343,10 +343,8 @@ async function exportReport() {
         </div>
         <BodyOnboardingForm
           submit-label="저장"
-          skip-label="나중에"
-          :show-skip="true"
+          :show-skip="false"
           @done="onBodyDone"
-          @skip="onBodySkip"
         />
       </div>
     </div>
