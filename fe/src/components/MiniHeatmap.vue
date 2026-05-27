@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+interface LegendItem { label: string; range: string }
+
 const props = withDefaults(defineProps<{
   data: Map<string, number>       // 'YYYY-MM-DD' → value
   weeks?: number                   // 표시할 주 수 (기본 26 = 약 6개월)
   max?: number                     // 색상 스케일 상한
   unit?: string                    // 툴팁 단위
   colors?: string[]                // 5단계 색상
+  legendItems?: LegendItem[]       // 5단계 라벨 + 기준 (없으면 간단 적음/많음)
 }>(), {
   weeks: 26,
   max: 500,
   unit: 'kcal',
   colors: () => ['#ebedf0', '#c8e6c9', '#9be9a8', '#40c463', '#216e39'],
+  legendItems: () => [],
 })
 
 const emit = defineEmits<{
@@ -116,8 +120,19 @@ const monthLabels = computed(() => {
       </div>
     </div>
 
-    <!-- 레전드 -->
-    <div class="mh-legend">
+    <!-- 레전드: 기준 있으면 5단계 펼침, 없으면 간단 적음/많음 -->
+    <div v-if="legendItems.length === colors.length" class="mh-legend-detail">
+      <div
+        v-for="(item, i) in legendItems"
+        :key="i"
+        class="mh-leg-item"
+      >
+        <span class="mh-leg-swatch" :style="{ background: colors[i] }"></span>
+        <span class="mh-leg-label">{{ item.label }}</span>
+        <span class="mh-leg-range">{{ item.range }}</span>
+      </div>
+    </div>
+    <div v-else class="mh-legend">
       <span>적음</span>
       <span v-for="c in colors" :key="c" class="mh-legend-cell" :style="{ background: c }"></span>
       <span>많음</span>
@@ -149,6 +164,47 @@ const monthLabels = computed(() => {
 }
 .mh-cell:hover { transform: scale(1.4); border-color: var(--c-text-soft); z-index: 2; position: relative; }
 .mh-cell.future { border: 1px dashed var(--c-border); }
+
+.mh-legend-detail {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  margin-top: 6px;
+}
+.mh-leg-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 4px 6px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  min-width: 0;
+}
+.mh-leg-swatch {
+  width: 12px; height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+.mh-leg-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--c-text);
+  letter-spacing: -0.005em;
+  font-family: var(--font-sans);
+  line-height: 1.2;
+}
+.mh-leg-range {
+  font-size: 9px;
+  color: var(--c-text-muted);
+  letter-spacing: -0.01em;
+  font-family: var(--font-num);
+  line-height: 1.2;
+}
+@media (max-width: 540px) {
+  .mh-legend-detail { grid-template-columns: repeat(2, 1fr); }
+}
 
 .mh-legend {
   display: flex; align-items: center; gap: 3px;

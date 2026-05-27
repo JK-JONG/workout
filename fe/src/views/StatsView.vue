@@ -60,6 +60,37 @@ const inMaxLabel = computed(() =>
     : '절대량 기준',
 )
 
+// 운동 강도 5단계 (절대값 기준) — MiniHeatmap의 levelOf와 동기화
+// levelOf: 0/r<0.25/r<0.5/r<0.75/r>=0.75, max=500이면 0/125/250/375
+// 실제 사용자 평가 기준(0/100/250/500)에 맞춰 라벨링
+const outLegend = [
+  { label: '휴식',   range: '0 kcal' },
+  { label: '가볍게', range: '~125' },
+  { label: '꾸준히', range: '~250' },
+  { label: '강하게', range: '~375' },
+  { label: '고강도', range: '375+' },
+]
+// 음식 섭취 5단계 (권장 대비 %)
+const inLegend = computed(() => {
+  if (recommendedKcal.value > 0) {
+    // max = 권장 × 1.2 이므로 단계는 max의 0/25/50/75% = 0/30/60/90% (권장의)
+    return [
+      { label: '미입력',  range: '0' },
+      { label: '많이 부족', range: '~30%' },
+      { label: '부족',     range: '~60%' },
+      { label: '적정 근처', range: '~90%' },
+      { label: '많음',     range: '90%+' },
+    ]
+  }
+  return [
+    { label: '0',  range: '' },
+    { label: '~625', range: '' },
+    { label: '~1,250', range: '' },
+    { label: '~1,875', range: '' },
+    { label: '2,500+', range: '' },
+  ]
+})
+
 // 잔디 hover 정보 (셀 위에 뜨는 툴팁)
 interface HeatmapHover { date: string; value: number; future: boolean }
 interface HoverRect { top: number; left: number; width: number; height: number }
@@ -377,6 +408,7 @@ const totalCounts = computed(() => ({
             :weeks="26"
             :max="500"
             :colors="outColors"
+            :legend-items="outLegend"
             unit="kcal"
             @hover="(cell, rect) => onHeatmapHover('out', cell, rect)"
           />
@@ -391,6 +423,7 @@ const totalCounts = computed(() => ({
             :weeks="26"
             :max="inMax"
             :colors="inColors"
+            :legend-items="inLegend"
             unit="kcal"
             @hover="(cell, rect) => onHeatmapHover('in', cell, rect)"
           />
