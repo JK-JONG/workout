@@ -66,8 +66,8 @@ function pickExercise(e: ExerciseItem) {
       const n = last.sets ?? 4
       setLogs.value = Array.from({ length: n }, () => ({ reps: last.reps ?? 10, weight: last.weight }))
     } else {
-      // 이전 기록 없음 — 무게는 비워두고 사용자가 채우게 함 (0kg 자동 입력 방지)
-      setLogs.value = Array.from({ length: 4 }, () => ({ reps: 12, weight: undefined }))
+      // 이전 기록 없음 — 최소 5kg부터 시작 (0kg = 운동 안 한 것)
+      setLogs.value = Array.from({ length: 4 }, (_, i) => ({ reps: 12, weight: 5 + i * 5 }))
     }
   } else if (e.unit === 'time') {
     exMinutes.value = last?.minutes ?? 20
@@ -77,8 +77,8 @@ function pickExercise(e: ExerciseItem) {
 }
 function addSet() {
   const tail = setLogs.value[setLogs.value.length - 1]
-  // 마지막 세트에 무게가 있으면 +5kg, 없으면 그대로 비워둠
-  const nextWeight = tail?.weight != null ? tail.weight + 5 : undefined
+  // 마지막 세트 무게 +5kg. 무게가 비어있던 운동이면 최소 5부터 시작.
+  const nextWeight = tail?.weight != null ? tail.weight + 5 : 5
   setLogs.value.push({ reps: tail?.reps ?? 12, weight: nextWeight })
 }
 function removeSet(idx: number) { setLogs.value.splice(idx, 1) }
@@ -139,7 +139,7 @@ function addWorkout() {
     w.km = exKm.value
   }
   w.kcal = previewKcal.value
-  log.addWorkout(w as Parameters<typeof log.addWorkout>[0])
+  log.upsertWorkout(w as Parameters<typeof log.upsertWorkout>[0])
 }
 
 function lastSummary(exId: string): string | null {
@@ -264,44 +264,9 @@ function fmtDelta(n: number, unit = ''): string {
         </details>
       </div>
 
-      <!-- 우: picker (또는 비어있을 때 오늘 운동 기록 sticky) -->
+      <!-- 우: picker(선택 시) + 오늘 운동 기록 (항상 보임, sticky) -->
       <div class="split-right">
-        <div v-if="!selectedExercise" class="today-card">
-          <div class="today-head">
-            <div class="today-title">오늘 운동 기록</div>
-            <span class="muted small">{{ workoutsOfDate.length }}건</span>
-          </div>
-          <ul v-if="workoutsOfDate.length" class="today-list">
-            <li v-for="w in workoutsOfDate" :key="w.id" class="today-item">
-              <div class="today-item-main">
-                <div class="today-item-name">{{ w.exerciseName }}</div>
-                <div class="today-item-sub muted num">
-                  <template v-if="w.unit === 'reps'">
-                    <template v-if="w.setLogs?.length">
-                      {{ w.setLogs.length }}세트 ·
-                      <span v-for="(s, i) in w.setLogs" :key="i">{{ i > 0 ? ' / ' : '' }}{{ s.reps }}{{ s.weight ? '×' + s.weight + 'kg' : '' }}</span>
-                    </template>
-                    <template v-else>
-                      {{ w.sets }}×{{ w.reps }}<span v-if="w.weight"> @{{ w.weight }}kg</span>
-                    </template>
-                  </template>
-                  <template v-else-if="w.unit === 'time'">{{ w.minutes }}분</template>
-                  <template v-else>{{ w.km }} km</template>
-                </div>
-              </div>
-              <div class="today-item-actions">
-                <span class="num accent">−{{ w.kcal }}</span>
-                <button class="icon-btn" @click="log.removeWorkout(w.id)" aria-label="삭제">×</button>
-              </div>
-            </li>
-          </ul>
-          <div v-else class="placeholder">
-            <div class="ph-title">왼쪽에서 운동을 선택해 시작</div>
-            <div class="ph-sub">기록을 추가하면 여기에 표시됩니다.</div>
-          </div>
-        </div>
-
-        <div v-else class="picker">
+        <div v-if="selectedExercise" class="picker">
           <div class="picker-head">
             <div>
               <div class="picker-name">
@@ -404,41 +369,45 @@ function fmtDelta(n: number, unit = ''): string {
 
           <button class="btn btn-primary btn-block" @click="addWorkout">기록 추가</button>
         </div>
+
+        <!-- 우측 항상 표시되는 오늘 운동 기록 -->
+        <div class="today-card">
+          <div class="today-head">
+            <div class="today-title">오늘 운동 기록</div>
+            <span class="muted small">{{ workoutsOfDate.length }}건</span>
+          </div>
+          <ul v-if="workoutsOfDate.length" class="today-list">
+            <li v-for="w in workoutsOfDate" :key="w.id" class="today-item">
+              <div class="today-item-main">
+                <div class="today-item-name">{{ w.exerciseName }}</div>
+                <div class="today-item-sub muted num">
+                  <template v-if="w.unit === 'reps'">
+                    <template v-if="w.setLogs?.length">
+                      {{ w.setLogs.length }}세트 ·
+                      <span v-for="(s, i) in w.setLogs" :key="i">{{ i > 0 ? ' / ' : '' }}{{ s.reps }}{{ s.weight ? '×' + s.weight + 'kg' : '' }}</span>
+                    </template>
+                    <template v-else>
+                      {{ w.sets }}×{{ w.reps }}<span v-if="w.weight"> @{{ w.weight }}kg</span>
+                    </template>
+                  </template>
+                  <template v-else-if="w.unit === 'time'">{{ w.minutes }}분</template>
+                  <template v-else>{{ w.km }} km</template>
+                </div>
+              </div>
+              <div class="today-item-actions">
+                <span class="num accent">−{{ w.kcal }}</span>
+                <button class="icon-btn" @click="log.removeWorkout(w.id)" aria-label="삭제">×</button>
+              </div>
+            </li>
+          </ul>
+          <div v-else class="today-empty muted small">
+            아직 오늘 추가된 운동이 없습니다.
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
-  <section class="card">
-    <div class="card-head">
-      <h2 class="card-title">오늘 운동 기록</h2>
-      <span class="muted small">{{ workoutsOfDate.length }}건</span>
-    </div>
-    <ul class="list">
-      <li v-for="w in workoutsOfDate" :key="w.id" class="row-item">
-        <div class="row-main">
-          <div class="row-name">{{ w.exerciseName }}</div>
-          <div class="row-sub muted num">
-            <template v-if="w.unit === 'reps'">
-              <template v-if="w.setLogs?.length">
-                {{ w.setLogs.length }}세트 ·
-                <span v-for="(s, i) in w.setLogs" :key="i">{{ i > 0 ? ' / ' : '' }}{{ s.reps }}{{ s.weight ? '×' + s.weight + 'kg' : '' }}</span>
-              </template>
-              <template v-else>
-                {{ w.sets }}세트 × {{ w.reps }}회<span v-if="w.weight"> @ {{ w.weight }}kg</span>
-              </template>
-            </template>
-            <template v-else-if="w.unit === 'time'">{{ w.minutes }}분</template>
-            <template v-else>{{ w.km }} km</template>
-          </div>
-        </div>
-        <div class="row-actions">
-          <span class="num accent">−{{ w.kcal }} kcal</span>
-          <button class="icon-btn" @click="log.removeWorkout(w.id)" aria-label="삭제">×</button>
-        </div>
-      </li>
-      <li v-if="workoutsOfDate.length === 0" class="empty">기록 없음</li>
-    </ul>
-  </section>
 </template>
 
 <style scoped>
@@ -487,7 +456,17 @@ function fmtDelta(n: number, unit = ''): string {
 .split { display: grid; gap: 14px; }
 @media (min-width: 920px) {
   .split { grid-template-columns: minmax(0, 1fr) 380px; }
-  .split-right { position: sticky; top: 64px; align-self: start; }
+  .split-right {
+    position: sticky;
+    top: 64px;
+    align-self: start;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: calc(100vh - 84px);
+    overflow-y: auto;
+    padding-right: 2px; /* 스크롤바 잘림 방지 */
+  }
 }
 .split-left { min-width: 0; }
 .split-right { min-width: 0; }
@@ -500,7 +479,7 @@ function fmtDelta(n: number, unit = ''): string {
 .ph-title { font-size: var(--fs-md); color: var(--c-text-soft); margin-bottom: 4px; }
 .ph-sub { font-size: var(--fs-sm); color: var(--c-text-muted); }
 
-/* ─── 우측 sticky 오늘 운동 기록 (picker 자리 비었을 때) ─── */
+/* ─── 우측 오늘 운동 기록 (항상 표시) ─── */
 .today-card {
   background: var(--c-surface);
   border: 1px solid var(--c-border);
@@ -509,8 +488,12 @@ function fmtDelta(n: number, unit = ''): string {
   box-shadow: var(--shadow-xs);
   display: grid;
   gap: 8px;
-  max-height: calc(100vh - 96px);
-  overflow-y: auto;
+  flex-shrink: 0;
+}
+.today-empty {
+  padding: 16px 4px;
+  text-align: center;
+  font-style: italic;
 }
 .today-head {
   display: flex;
