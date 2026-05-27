@@ -56,15 +56,24 @@ const setLogs = ref<SetLog[]>([])
 const exMinutes = ref(20)
 const exKm = ref(3)
 
+function isBodyweightExercise(e: ExerciseItem | null): boolean {
+  return e?.equipment === '맨몸'
+}
+const isBodyweight = computed(() => isBodyweightExercise(selectedExercise.value))
+
 function pickExercise(e: ExerciseItem) {
   selectedExercise.value = e
   const last = log.lastWorkoutOf(e.id)
+  const bw = isBodyweightExercise(e)
   if (e.unit === 'reps') {
     if (last?.setLogs?.length) {
-      setLogs.value = last.setLogs.map(s => ({ reps: s.reps, weight: s.weight }))
+      setLogs.value = last.setLogs.map(s => ({ reps: s.reps, weight: bw ? undefined : s.weight }))
     } else if (last) {
       const n = last.sets ?? 4
-      setLogs.value = Array.from({ length: n }, () => ({ reps: last.reps ?? 10, weight: last.weight }))
+      setLogs.value = Array.from({ length: n }, () => ({ reps: last.reps ?? 10, weight: bw ? undefined : last.weight }))
+    } else if (bw) {
+      // 맨몸 운동 — 무게 없음, 횟수만
+      setLogs.value = Array.from({ length: 4 }, () => ({ reps: 15, weight: undefined }))
     } else {
       // 이전 기록 없음 — 최소 5kg부터 시작 (0kg = 운동 안 한 것)
       setLogs.value = Array.from({ length: 4 }, (_, i) => ({ reps: 12, weight: 5 + i * 5 }))
@@ -77,8 +86,10 @@ function pickExercise(e: ExerciseItem) {
 }
 function addSet() {
   const tail = setLogs.value[setLogs.value.length - 1]
-  // 마지막 세트 무게 +5kg. 무게가 비어있던 운동이면 최소 5부터 시작.
-  const nextWeight = tail?.weight != null ? tail.weight + 5 : 5
+  // 맨몸 운동이면 무게 없음 유지. 일반 운동이면 마지막 무게 +5kg, 비어있으면 5부터.
+  const nextWeight = isBodyweight.value
+    ? undefined
+    : (tail?.weight != null ? tail.weight + 5 : 5)
   setLogs.value.push({ reps: tail?.reps ?? 12, weight: nextWeight })
 }
 function removeSet(idx: number) { setLogs.value.splice(idx, 1) }
@@ -270,15 +281,25 @@ function lastSummary(exId: string): string | null {
               <span class="sets-title">세트</span>
               <button class="btn-mini" @click="addSet">+ 세트</button>
             </div>
-            <div v-for="(s, i) in setLogs" :key="i" class="set-row">
+            <div
+              v-for="(s, i) in setLogs"
+              :key="i"
+              class="set-row"
+              :class="{ 'set-row-bw': isBodyweight }"
+            >
               <span class="set-no">{{ i + 1 }}</span>
-              <div class="set-input-group">
+              <div class="set-input-group" :class="{ bw: isBodyweight }">
                 <input class="set-field num" type="number" v-model.number="s.reps" min="0" max="100" aria-label="횟수" />
-                <span class="set-x">×</span>
-                <input class="set-field num" type="number" v-model.number="s.weight" min="0" max="500" step="5" placeholder="0" aria-label="무게(kg)" />
-                <span class="set-unit">kg</span>
+                <template v-if="isBodyweight">
+                  <span class="set-unit">회</span>
+                </template>
+                <template v-else>
+                  <span class="set-x">×</span>
+                  <input class="set-field num" type="number" v-model.number="s.weight" min="0" max="500" step="5" placeholder="0" aria-label="무게(kg)" />
+                  <span class="set-unit">kg</span>
+                </template>
               </div>
-              <div class="set-steppers">
+              <div v-if="!isBodyweight" class="set-steppers">
                 <button class="step-btn" @click="s.weight = Math.max(0, (s.weight || 0) - 5)" title="−5kg">−</button>
                 <button class="step-btn" @click="s.weight = (s.weight || 0) + 5" title="+5kg">＋</button>
               </div>
@@ -383,13 +404,13 @@ function lastSummary(exId: string): string | null {
 .row-index { font-size: var(--fs-xs); color: var(--c-text-muted); width: 14px; text-align: right; }
 .row-name { font-size: var(--fs-md); color: var(--c-text); }
 .row-en { font-size: var(--fs-xs); color: var(--c-text-muted); font-weight: 400; margin-left: 4px; }
-.row-sub { display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--fs-xs); color: var(--c-text-muted); }
+.row-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--c-text-muted); line-height: 1.4; }
 .row-aux { font-size: var(--fs-xs); color: var(--c-text-muted); white-space: nowrap; }
 .row-aux-col { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; white-space: nowrap; }
 .last-pill { font-size: var(--fs-xs); padding: 1px 7px; border-radius: 999px; background: var(--c-accent-soft); color: var(--c-accent-ink); }
 .row-actions { display: flex; align-items: center; gap: 6px; }
 .empty { padding: 12px 10px; font-size: var(--fs-sm); color: var(--c-text-muted); text-align: center; }
-.tag { display: inline-block; padding: 1px 6px; font-size: var(--fs-xs); border: 1px solid var(--c-border-strong); border-radius: var(--radius-xs); color: var(--c-text-soft); }
+.tag { display: inline-flex; align-items: center; padding: 1px 6px; font-size: var(--fs-xs); line-height: 1.4; border: 1px solid var(--c-border-strong); border-radius: var(--radius-xs); color: var(--c-text-soft); vertical-align: middle; }
 .tag-soft { background: var(--c-accent-soft); border-color: var(--c-accent-soft); color: var(--c-accent-ink); }
 .accent { color: var(--c-accent); }
 .warn { color: var(--c-warn); }
@@ -561,6 +582,10 @@ function lastSummary(exId: string): string | null {
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.1fr) auto;
   align-items: center;
   gap: 4px;
+}
+.set-input-group.bw {
+  /* 맨몸 운동: [reps] [회] */
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 .set-field {
   width: 100%;
