@@ -39,48 +39,41 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
 </script>
 
 <template>
-  <section class="wrap">
-    <!-- 권장 칼로리 -->
-    <div v-if="recommendedKcal" class="rec">
-      <svg
-        class="rec-ring"
-        viewBox="0 0 120 120"
-        :aria-label="`권장 ${recommendedKcal} kcal 중 ${kcalIn} kcal (${intakeRatio}%)`"
-      >
-        <!-- 트랙 -->
-        <circle cx="60" cy="60" r="50" class="rec-ring-track" />
-        <!-- 권장(100%) 표시선 — 풀 트랙의 100% 지점이 ring 한바퀴이므로 시각적 가이드는 생략하고 130% 트랙에서 처리 -->
-        <!-- 진행률 — 12시 방향에서 시작해서 시계방향으로 -->
-        <circle
-          cx="60" cy="60" r="50"
-          class="rec-ring-fill"
-          :class="intakeStatus.tone"
-          :stroke-dasharray="ringDashArray"
-          :stroke-dashoffset="ringDashOffset"
-          transform="rotate(-90 60 60)"
-        />
-      </svg>
-      <div class="rec-center" aria-hidden="true">
-        <div class="rec-pct num">{{ intakeRatio }}<span class="rec-pct-unit">%</span></div>
-        <div class="rec-status-label" :class="intakeStatus.tone">{{ intakeStatus.label }}</div>
-      </div>
-      <div class="rec-info">
-        <div class="rec-label">하루 권장 섭취</div>
-        <div class="rec-value num">
-          <span class="rec-now">{{ kcalIn.toLocaleString() }}</span>
-          <span class="rec-slash">/</span>
-          <span class="rec-goal">{{ recommendedKcal.toLocaleString() }}</span>
-          <span class="rec-unit">kcal</span>
+  <section class="board" :class="{ 'no-rec': !recommendedKcal }">
+    <!-- 좌측: 권장 도넛 (체중 정보가 있을 때만) -->
+    <div v-if="recommendedKcal" class="ring-block">
+      <div class="ring-wrap">
+        <svg
+          class="rec-ring"
+          viewBox="0 0 120 120"
+          :aria-label="`권장 ${recommendedKcal} kcal 중 ${kcalIn} kcal (${intakeRatio}%)`"
+        >
+          <circle cx="60" cy="60" r="50" class="rec-ring-track" />
+          <circle
+            cx="60" cy="60" r="50"
+            class="rec-ring-fill"
+            :class="intakeStatus.tone"
+            :stroke-dasharray="ringDashArray"
+            :stroke-dashoffset="ringDashOffset"
+            transform="rotate(-90 60 60)"
+          />
+        </svg>
+        <div class="rec-center" aria-hidden="true">
+          <div class="rec-pct num">{{ intakeRatio }}<span class="rec-pct-unit">%</span></div>
+          <div class="rec-status-label" :class="intakeStatus.tone">{{ intakeStatus.label }}</div>
         </div>
+      </div>
+      <div class="ring-meta">
+        <div class="rec-label">권장 {{ recommendedKcal.toLocaleString() }} kcal</div>
         <div class="rec-remain muted small">
           <template v-if="remain > 0">{{ remain.toLocaleString() }} kcal 남음</template>
           <template v-else>{{ Math.abs(remain).toLocaleString() }} kcal 초과</template>
-          <span class="rec-formula"> · 체중 × 30 추정</span>
         </div>
       </div>
     </div>
 
-    <section class="summary">
+    <!-- 우측: 4칸 stat -->
+    <div class="summary">
       <div class="stat">
         <div class="stat-label">섭취</div>
         <div class="stat-value num">{{ kcalIn }}<span class="stat-unit">kcal</span></div>
@@ -99,32 +92,51 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
         <div class="stat-label">오늘 강도</div>
         <div class="stat-value-text">{{ intensityLabel(kcalOut) }}</div>
       </div>
-    </section>
+    </div>
   </section>
 </template>
 
 <style scoped>
-.wrap { display: grid; gap: 10px; }
-
-/* ─── 권장 칼로리 (원형 차트) ─── */
-.rec {
-  position: relative;
+/* ─── 한 줄 통합 보드 ─── */
+.board {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 18px;
-  align-items: center;
-  padding: 14px 16px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+  padding: 12px 14px;
   background: var(--c-surface);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-xs);
 }
+.board.no-rec { grid-template-columns: 1fr; }
+@media (max-width: 720px) {
+  .board { grid-template-columns: 1fr; gap: 12px; padding: 12px; }
+}
+
+.ring-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 14px;
+  border-right: 1px solid var(--c-border);
+}
+@media (max-width: 720px) {
+  .ring-block { padding-right: 0; padding-bottom: 12px; border-right: none; border-bottom: 1px solid var(--c-border); }
+}
+.ring-wrap { position: relative; width: 88px; height: 88px; flex-shrink: 0; }
+.ring-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
 .rec-ring {
-  width: 96px;
-  height: 96px;
+  width: 88px;
+  height: 88px;
   display: block;
-  grid-column: 1;
-  grid-row: 1;
 }
 .rec-ring-track {
   fill: none;
@@ -143,10 +155,8 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
 .rec-ring-fill.neutral { stroke: var(--c-text-muted); }
 
 .rec-center {
-  grid-column: 1;
-  grid-row: 1;
-  width: 96px;
-  height: 96px;
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -154,21 +164,21 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
   pointer-events: none;
 }
 .rec-pct {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1;
   color: var(--c-text);
 }
 .rec-pct-unit {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--c-text-muted);
   margin-left: 1px;
   font-weight: 600;
 }
 .rec-status-label {
   margin-top: 3px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -177,71 +187,57 @@ const remain = computed(() => recommendedKcal.value - kcalIn.value)
 .rec-status-label.over { color: var(--c-danger); }
 .rec-status-label.neutral { color: var(--c-text-muted); }
 
-.rec-info {
-  grid-column: 2;
+.rec-label {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  color: var(--c-text);
+  font-family: var(--font-num);
+}
+.rec-remain { font-size: var(--fs-xs); }
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  align-self: stretch;
+}
+.stat {
+  padding: 4px 14px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  justify-content: center;
+  border-left: 1px solid var(--c-border);
   min-width: 0;
 }
-.rec-label {
-  font-size: var(--fs-xs);
+.stat:first-child { border-left: none; padding-left: 4px; }
+.stat-label {
+  font-size: 10px;
   color: var(--c-text-muted);
-  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   font-weight: 600;
 }
-.rec-value {
-  font-size: var(--fs-xl);
+.stat-value {
+  font-size: var(--fs-2xl);
   font-weight: 700;
-  letter-spacing: -0.015em;
-  line-height: 1.2;
-  color: var(--c-text);
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  flex-wrap: wrap;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
 }
-.rec-now { color: var(--c-text); }
-.rec-slash { color: var(--c-text-muted); font-weight: 400; }
-.rec-goal { color: var(--c-text-soft); }
-.rec-unit {
-  font-size: var(--fs-xs);
-  color: var(--c-text-muted);
-  margin-left: 2px;
-  font-weight: 500;
-}
-.rec-remain { font-size: var(--fs-xs); }
-.rec-formula { color: var(--c-text-muted); }
-
-@media (max-width: 480px) {
-  .rec { grid-template-columns: 80px minmax(0, 1fr); gap: 14px; padding: 12px; }
-  .rec-ring, .rec-center { width: 80px; height: 80px; }
-  .rec-pct { font-size: 18px; }
-}
-
-.summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.stat {
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-md);
-  padding: 10px 12px;
-  box-shadow: var(--shadow-xs);
-}
-.stat-label {
-  font-size: var(--fs-xs);
-  color: var(--c-text-muted);
-  margin-bottom: 4px;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.stat-value { font-size: var(--fs-2xl); font-weight: 600; letter-spacing: -0.02em; }
-.stat-value-text { font-size: var(--fs-lg); font-weight: 500; color: var(--c-text-soft); }
-.stat-unit { font-size: var(--fs-xs); color: var(--c-text-muted); margin-left: 3px; font-weight: 400; }
+.stat-value-text { font-size: var(--fs-md); font-weight: 600; color: var(--c-text-soft); }
+.stat-unit { font-size: 10px; color: var(--c-text-muted); margin-left: 3px; font-weight: 500; }
 .accent { color: var(--c-accent); }
 .warn { color: var(--c-warn); }
 
-@media (max-width: 600px) {
-  .summary { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 720px) {
+  .summary { grid-template-columns: repeat(4, 1fr); }
+  .stat { padding: 4px 10px; }
+}
+@media (max-width: 520px) {
+  .summary { grid-template-columns: repeat(2, 1fr); gap: 0; }
+  .stat { padding: 8px 10px; border-left: 1px solid var(--c-border); border-top: 1px solid var(--c-border); }
+  .stat:nth-child(2n+1) { border-left: none; }
+  .stat:nth-child(-n+2) { border-top: none; }
 }
 </style>

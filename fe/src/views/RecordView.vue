@@ -24,7 +24,14 @@ const showBodyModal = ref(false)
 const skippedBodyModal = useLocalStorage<string>('wt.bodyModalSkipped', '') // 프로필명 저장 — 다음 진입 시 안 띄움
 const lastCarryAt = useLocalStorage<string>('wt.bodyCarryAt', '')
 
-function todayStr() { return new Date().toISOString().slice(0, 10) }
+function ymd(d: Date): string {
+  // 로컬 기준 YYYY-MM-DD. toISOString은 UTC 변환으로 KST 자정 → 전날 15시가 되어 날짜가 어긋남.
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+function todayStr() { return ymd(new Date()) }
 
 function maybeShowOrCarry() {
   if (!activeProfile.value) return
@@ -86,10 +93,73 @@ function shiftDate(days: number) {
   const d = new Date(selectedDate.value + 'T00:00:00')
   if (isNaN(d.getTime())) return
   d.setDate(d.getDate() + days)
-  selectedDate.value = d.toISOString().slice(0, 10)
+  selectedDate.value = ymd(d)
 }
 function goToday() {
   selectedDate.value = todayStr()
+}
+
+// ── 커스텀 달력 popover ──
+const showCalendar = ref(false)
+const calendarRef = ref<HTMLElement | null>(null)
+const viewMonth = ref(new Date())
+
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
+
+interface CalCell { date: string; day: number; outside: boolean; today: boolean; selected: boolean; weekday: number }
+
+const calendarCells = computed<CalCell[]>(() => {
+  const y = viewMonth.value.getFullYear()
+  const m = viewMonth.value.getMonth()
+  const first = new Date(y, m, 1)
+  const startDow = first.getDay()
+  const start = new Date(y, m, 1 - startDow)
+  const today = todayStr()
+  const cells: CalCell[] = []
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start)
+    d.setDate(start.getDate() + i)
+    const dateStr = ymd(d)
+    cells.push({
+      date: dateStr,
+      day: d.getDate(),
+      outside: d.getMonth() !== m,
+      today: dateStr === today,
+      selected: dateStr === selectedDate.value,
+      weekday: d.getDay(),
+    })
+  }
+  return cells
+})
+
+const calendarMonthLabel = computed(() => {
+  return `${viewMonth.value.getFullYear()}년 ${viewMonth.value.getMonth() + 1}월`
+})
+
+function openCalendar() {
+  const d = new Date(selectedDate.value + 'T00:00:00')
+  viewMonth.value = isNaN(d.getTime()) ? new Date() : new Date(d.getFullYear(), d.getMonth(), 1)
+  showCalendar.value = true
+}
+function closeCalendar() { showCalendar.value = false }
+function toggleCalendar() {
+  if (showCalendar.value) closeCalendar()
+  else openCalendar()
+}
+function shiftMonth(delta: number) {
+  const d = new Date(viewMonth.value)
+  d.setMonth(d.getMonth() + delta)
+  viewMonth.value = d
+}
+function pickCell(cell: CalCell) {
+  selectedDate.value = cell.date
+  closeCalendar()
+}
+
+function onDocClick(ev: MouseEvent) {
+  if (!showCalendar.value) return
+  const el = calendarRef.value
+  if (el && !el.contains(ev.target as Node)) closeCalendar()
 }
 
 function onKey(ev: KeyboardEvent) {
@@ -103,20 +173,14 @@ function onKey(ev: KeyboardEvent) {
   else if (ev.key.toLowerCase() === 't' && !isToday.value) { goToday(); ev.preventDefault() }
 }
 
-onMounted(() => window.addEventListener('keydown', onKey))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
-
-const dateInputRef = ref<HTMLInputElement | null>(null)
-function openDatePicker() {
-  const el = dateInputRef.value
-  if (!el) return
-  // 일부 브라우저(Chrome)는 showPicker()를 지원 — 안 되면 focus로 fallback
-  if (typeof el.showPicker === 'function') {
-    try { el.showPicker(); return } catch { /* noop */ }
-  }
-  el.focus()
-  el.click()
-}
+onMounted(() => {
+  window.addEventListener('keydown', onKey)
+  document.addEventListener('mousedown', onDocClick)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKey)
+  document.removeEventListener('mousedown', onDocClick)
+})
 
 const reportRef = ref<HTMLElement | null>(null)
 const reportMounted = ref(false)
@@ -180,7 +244,7 @@ async function exportReport() {
             {{ exporting ? '생성 중…' : '🖼 평가서 이미지' }}
           </button>
 
-          <div class="date-picker" :class="{ 'is-today': isToday }">
+          <div ref="calendarRef" class="date-picker" :class="{ 'is-today': isToday, 'is-open': showCalendar }">
             <button
               type="button"
               class="date-nav"
@@ -191,21 +255,13 @@ async function exportReport() {
             <button
               type="button"
               class="date-display"
-              @click="openDatePicker"
+              @click="toggleCalendar"
               :title="selectedDate"
             >
               <span class="date-icon" aria-hidden="true">📅</span>
               <span class="date-text">{{ dateLabel }}</span>
               <span v-if="isToday" class="date-badge">오늘</span>
             </button>
-            <input
-              ref="dateInputRef"
-              class="date-input-hidden"
-              type="date"
-              v-model="selectedDate"
-              aria-label="날짜 선택"
-              tabindex="-1"
-            />
             <button
               type="button"
               class="date-nav"
@@ -220,6 +276,42 @@ async function exportReport() {
               @click="goToday"
               title="오늘로"
             >오늘</button>
+
+            <!-- 커스텀 달력 popover -->
+            <div v-if="showCalendar" class="cal-popover" role="dialog" aria-label="날짜 선택">
+              <div class="cal-head">
+                <button type="button" class="cal-nav" @click="shiftMonth(-1)" aria-label="이전 달">‹</button>
+                <div class="cal-month">{{ calendarMonthLabel }}</div>
+                <button type="button" class="cal-nav" @click="shiftMonth(1)" aria-label="다음 달">›</button>
+              </div>
+              <div class="cal-weekdays">
+                <span
+                  v-for="(w, i) in WEEKDAYS"
+                  :key="w"
+                  class="cal-weekday"
+                  :class="{ sun: i === 0, sat: i === 6 }"
+                >{{ w }}</span>
+              </div>
+              <div class="cal-grid">
+                <button
+                  v-for="c in calendarCells"
+                  :key="c.date"
+                  type="button"
+                  class="cal-cell"
+                  :class="{
+                    outside: c.outside,
+                    today: c.today,
+                    selected: c.selected,
+                    sun: c.weekday === 0,
+                    sat: c.weekday === 6,
+                  }"
+                  @click="pickCell(c)"
+                >{{ c.day }}</button>
+              </div>
+              <div class="cal-foot">
+                <button type="button" class="cal-foot-btn" @click="goToday(); closeCalendar()">오늘로</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -381,15 +473,6 @@ async function exportReport() {
   border-radius: 999px;
   font-family: var(--font-sans);
 }
-.date-input-hidden {
-  position: absolute;
-  width: 1px; height: 1px;
-  padding: 0; margin: -1px;
-  border: 0; clip: rect(0 0 0 0);
-  overflow: hidden;
-  pointer-events: none;
-  opacity: 0;
-}
 .date-today {
   height: 30px;
   margin-left: 4px;
@@ -408,6 +491,135 @@ async function exportReport() {
   cursor: not-allowed;
   background: var(--c-surface-2);
   color: var(--c-text-muted);
+}
+
+/* ─── 커스텀 달력 popover ─── */
+.cal-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  width: 304px;
+  padding: 14px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 32px -8px rgba(20,18,12,0.18), 0 4px 8px rgba(20,18,12,0.06);
+  animation: cal-pop 0.15s ease-out;
+}
+@keyframes cal-pop {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.cal-head {
+  display: grid;
+  grid-template-columns: 32px 1fr 32px;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.cal-nav {
+  width: 32px; height: 32px;
+  display: inline-grid; place-items: center;
+  font-size: 20px;
+  color: var(--c-text-soft);
+  border-radius: var(--radius-sm);
+  transition: background 0.15s, color 0.15s;
+}
+.cal-nav:hover { background: var(--c-surface-2); color: var(--c-text); }
+.cal-month {
+  text-align: center;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--c-text);
+  letter-spacing: -0.005em;
+  font-family: var(--font-num);
+}
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--c-border);
+}
+.cal-weekday {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-text-muted);
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+.cal-weekday.sun { color: #d97070; }
+.cal-weekday.sat { color: #6b8fb5; }
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.cal-cell {
+  height: 34px;
+  display: inline-grid; place-items: center;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--c-text);
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-num);
+  transition: background 0.12s, color 0.12s, transform 0.05s;
+}
+.cal-cell:hover {
+  background: var(--c-accent-soft);
+  color: var(--c-accent-ink);
+}
+.cal-cell:active { transform: scale(0.94); }
+.cal-cell.outside { color: var(--c-text-muted); opacity: 0.45; }
+.cal-cell.sun { color: #d97070; }
+.cal-cell.sat { color: #6b8fb5; }
+.cal-cell.outside.sun, .cal-cell.outside.sat { opacity: 0.35; }
+.cal-cell.today {
+  font-weight: 700;
+  position: relative;
+}
+.cal-cell.today::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--c-accent);
+}
+.cal-cell.selected {
+  background: var(--c-accent);
+  color: #fff !important;
+  font-weight: 700;
+  opacity: 1;
+}
+.cal-cell.selected::after { background: #fff; }
+.cal-cell.selected:hover { background: var(--c-accent-ink); }
+
+.cal-foot {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--c-border);
+  display: flex;
+  justify-content: center;
+}
+.cal-foot-btn {
+  padding: 6px 14px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--c-accent-ink);
+  background: var(--c-accent-soft);
+  border-radius: 999px;
+  transition: background 0.15s, color 0.15s;
+}
+.cal-foot-btn:hover { background: var(--c-accent); color: #fff; }
+
+@media (max-width: 480px) {
+  .cal-popover { right: auto; left: 0; width: calc(100vw - 32px); max-width: 320px; }
 }
 
 .tab-body { margin-top: 4px; }
