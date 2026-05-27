@@ -14,6 +14,10 @@ const { exercises } = storeToRefs(catalog)
 const ROUTINE_ORDER: Routine[] = ['등&삼두', '하체&이두', '가슴&복근', '어깨&삼두']
 const EXTRA_CATEGORY_ORDER = ['가슴', '등', '하체', '어깨', '팔', '복근', '맨몸']
 
+// 매일 하는 맨몸 4종 — 다른 분류 리스트에서는 중복 제거되어 안 보임.
+const DAILY_IDS = ['crunch-25x3', 'pushup', 'bw-lunge', 'ab-slide'] as const
+const DAILY_IDS_SET: ReadonlySet<string> = new Set(DAILY_IDS)
+
 const exerciseQuery = ref('')
 const filteredExercises = computed(() => {
   const q = exerciseQuery.value.trim()
@@ -26,19 +30,26 @@ const filteredExercises = computed(() => {
     (e.routine ?? '').includes(q),
   )
 })
+// 매일 맨몸 운동 (검색 무관 — 항상 상단 노출)
+const dailyExercises = computed<ExerciseItem[]>(() => {
+  const byId = new Map(exercises.value.map(e => [e.id, e]))
+  return DAILY_IDS.map(id => byId.get(id)).filter((e): e is ExerciseItem => Boolean(e))
+})
+
 function routineExercises(r: Routine): ExerciseItem[] {
   return filteredExercises.value
-    .filter(e => e.routine === r)
+    .filter(e => e.routine === r && !DAILY_IDS_SET.has(e.id))
     .sort((a, b) => (a.order_no ?? 0) - (b.order_no ?? 0))
 }
 const cardioExercises = computed(() =>
-  filteredExercises.value.filter(e => !e.routine && e.category === '유산소'),
+  filteredExercises.value.filter(e => !e.routine && e.category === '유산소' && !DAILY_IDS_SET.has(e.id)),
 )
 const extraExerciseGroups = computed(() => {
   const m = new Map<string, ExerciseItem[]>()
   for (const e of filteredExercises.value) {
     if (e.routine) continue
     if (e.category === '유산소') continue
+    if (DAILY_IDS_SET.has(e.id)) continue
     const list = m.get(e.category) ?? []
     list.push(e)
     m.set(e.category, list)
@@ -48,7 +59,7 @@ const extraExerciseGroups = computed(() => {
     .map(c => [c, m.get(c)!] as [string, ExerciseItem[]])
 })
 const extraExerciseCount = computed(() =>
-  filteredExercises.value.filter(e => !e.routine && e.category !== '유산소').length,
+  filteredExercises.value.filter(e => !e.routine && e.category !== '유산소' && !DAILY_IDS_SET.has(e.id)).length,
 )
 
 const selectedExercise = ref<ExerciseItem | null>(null)
@@ -174,8 +185,38 @@ function lastSummary(exId: string): string | null {
     </div>
 
     <div class="split">
-      <!-- 좌: 4분할 + 유산소 -->
+      <!-- 좌: 매일 맨몸 + 4분할 + 유산소 -->
       <div class="split-left">
+        <div v-if="dailyExercises.length" class="routine-block daily-block">
+          <div class="routine-head">
+            <span class="routine-name">매일 맨몸</span>
+            <span class="routine-count muted small">{{ dailyExercises.length }}개 · 고정</span>
+          </div>
+          <ul class="list">
+            <li
+              v-for="e in dailyExercises"
+              :key="e.id"
+              class="row-item"
+              :class="{ picked: selectedExercise?.id === e.id }"
+              @click="pickExercise(e)"
+            >
+              <img v-if="e.image_url" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" />
+              <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">⚡</div>
+              <div class="row-main">
+                <div class="row-name">{{ e.name }}<span v-if="e.search_en" class="row-en"> ({{ e.search_en }})</span></div>
+                <div class="row-sub">
+                  <span class="tag tag-soft">매일</span>
+                  <span class="muted">{{ e.body_part }}</span>
+                </div>
+              </div>
+              <div class="row-aux-col">
+                <span v-if="lastSummary(e.id)" class="last-pill num">전 {{ lastSummary(e.id) }}</span>
+                <span class="row-aux num">MET {{ e.met }}</span>
+              </div>
+            </li>
+          </ul>
+        </div>
+
         <div v-for="r in ROUTINE_ORDER" :key="r" class="routine-block">
           <div class="routine-head">
             <span class="routine-name">{{ r }}</span>
@@ -438,6 +479,16 @@ function lastSummary(exId: string): string | null {
 .routine-block { margin-bottom: 16px; }
 .routine-head { display: flex; align-items: baseline; gap: 8px; padding: 4px 4px 6px; border-bottom: 1px solid var(--c-border); margin-bottom: 6px; }
 .routine-name { font-size: var(--fs-md); font-weight: 600; color: var(--c-accent-ink); letter-spacing: -0.01em; }
+
+.daily-block .routine-head { border-bottom: 2px solid var(--c-accent); }
+.daily-block .routine-name { color: var(--c-accent); }
+.row-thumb-bw {
+  display: inline-grid;
+  place-items: center;
+  font-size: 18px;
+  background: var(--c-accent-soft);
+  color: var(--c-accent-ink);
+}
 
 .placeholder { padding: 28px 16px; text-align: center; background: var(--c-surface-2); border: 1px dashed var(--c-border-strong); border-radius: var(--radius-md); }
 .ph-title { font-size: var(--fs-md); color: var(--c-text-soft); margin-bottom: 4px; }

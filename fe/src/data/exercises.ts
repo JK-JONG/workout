@@ -94,4 +94,8 @@ export const EXERCISES: ExerciseItem[] = [
   { id: 'burpee',              name: '버피',                     category: '맨몸', equipment: '맨몸',   met: 8.0, unit: 'reps', duration_per_set: 0.7, body_part: '전신',                         search_en: 'burpee',                          image_url: IMG + '1160-dK9394r.gif' },
   { id: 'battle-rope',         name: '배틀 로프',                category: '맨몸', equipment: '유산소기구', met: 8.0, unit: 'reps', duration_per_set: 0.7, body_part: '전신, 어깨',               search_en: 'battling ropes',                  image_url: IMG + '0128-RJa4tCo.gif' },
   { id: 'elliptical-machine',  name: '일립티컬',                 category: '유산소', equipment: '유산소기구', met: 5.0, unit: 'time',                          body_part: '전신',                         search_en: 'elliptical machine',              image_url: IMG + '2141-rjtuP6X.gif' },
+
+  // ── 매일 맨몸(고정 노출) ──
+  { id: 'bw-lunge',            name: '런지 (맨몸)',              category: '하체', equipment: '맨몸',   met: 5.5, unit: 'reps', duration_per_set: 0.6, body_part: '대퇴사두근, 대둔근',           search_en: 'bodyweight lunge',                image_url: IMG + '0537-jOTzkPK.gif' },
+  { id: 'ab-slide',            name: 'AB 슬라이드',              category: '복근', equipment: '맨몸',   met: 5.0, unit: 'reps', duration_per_set: 0.6, body_part: '복직근, 코어',                 search_en: 'ab wheel rollout' },
 ]

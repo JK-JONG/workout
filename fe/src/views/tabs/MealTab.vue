@@ -60,7 +60,14 @@ function isChecked(slot: Slot, foodId: string) {
   return isAlreadyLogged(slot, foodId) || isSelected(slot, foodId)
 }
 function toggleSelected(slot: Slot, foodId: string) {
-  if (isAlreadyLogged(slot, foodId)) return // 이미 기록된 항목은 토글 안 됨 (시각적으로만 체크)
+  if (isAlreadyLogged(slot, foodId)) {
+    // 이미 기록된 항목 클릭 — 체크 해제 + 해당 식단 entry 삭제
+    const toRemove = mealsOfDate.value
+      .filter(m => m.foodId === foodId && resolveSlot(m) === slot)
+      .map(m => m.id)
+    for (const id of toRemove) log.removeMeal(id)
+    return
+  }
   const i = selectedFoods.value.findIndex(s => s.slot === slot && s.foodId === foodId)
   if (i >= 0) selectedFoods.value.splice(i, 1)
   else selectedFoods.value.push({ slot, foodId })
@@ -93,29 +100,6 @@ function addSelectedMeals() {
   selectedFoods.value = []
 }
 
-function addPreset(slot: Slot, pick: number) {
-  const preset = mealPresets.value.find(p => p.slot === slot && p.pick === pick)
-  if (!preset) return
-  for (const item of preset.items) {
-    const f = foodById.value.get(item.food_id)
-    if (!f) continue
-    if (isAlreadyLogged(slot, f.id)) continue // 이미 같은 슬롯에 있는 항목은 건너뜀
-    log.addMeal({
-      date: selectedDate.value,
-      foodId: f.id,
-      foodName: `${f.name} (택${pick})`,
-      slot,
-      portion: 1,
-      kcal: f.kcal,
-      protein: Math.round(f.protein),
-      carbs: Math.round(f.carbs),
-      fat: Math.round(f.fat),
-    })
-  }
-}
-function slotPresets(slot: Slot) {
-  return mealPresets.value.filter(p => p.slot === slot).sort((a, b) => a.pick - b.pick)
-}
 
 // ── 즉석 추가 (당일 한정 — customFood 영구 등록 X) ──
 const showQuickAdd = ref(false)
@@ -205,15 +189,6 @@ function slotKcal(slot: Slot): number {
       <div v-for="slot in SLOTS" :key="slot" class="meal-slot">
         <div class="meal-slot-head">
           <span class="meal-slot-name">{{ slot }}</span>
-          <div class="meal-slot-presets">
-            <button
-              v-for="p in slotPresets(slot)"
-              :key="p.pick"
-              class="btn-mini"
-              @click="addPreset(slot, p.pick)"
-              :title="`택${p.pick} 통째 추가`"
-            >택{{ p.pick }}</button>
-          </div>
         </div>
         <div class="pool">
           <div v-for="[cat, list] in slotFoodGroups(slot)" :key="cat" class="pool-group">
@@ -231,7 +206,6 @@ function slotKcal(slot: Slot): number {
                 <input
                   type="checkbox"
                   :checked="isChecked(slot, f.id)"
-                  :disabled="isAlreadyLogged(slot, f.id)"
                   @change="toggleSelected(slot, f.id)"
                 />
                 <div class="cc-body">
@@ -263,7 +237,6 @@ function slotKcal(slot: Slot): number {
           <input
             type="checkbox"
             :checked="isChecked('아침', f.id)"
-            :disabled="isAlreadyLogged('아침', f.id)"
             @change="toggleSelected('아침', f.id)"
           />
           <div class="cc-body">
@@ -379,7 +352,6 @@ select.input { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http:/
 .meal-slot { background: var(--c-surface-2); border: 1px solid var(--c-border); border-radius: var(--radius-md); padding: 10px 12px; }
 .meal-slot-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--c-border); }
 .meal-slot-name { font-size: var(--fs-md); font-weight: 600; color: var(--c-accent-ink); }
-.meal-slot-presets { display: flex; gap: 4px; }
 
 .pool { display: grid; gap: 8px; }
 .pool-group-head { font-size: var(--fs-xs); color: var(--c-text-muted); letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 3px; }
@@ -426,8 +398,6 @@ select.input { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http:/
 .btn-primary:hover { background: var(--c-accent-ink); }
 .btn-ghost { background: transparent; color: var(--c-text-soft); border: 1px solid var(--c-border-strong); }
 .btn-ghost:hover { background: var(--c-surface-2); color: var(--c-text); }
-.btn-mini { height: 22px; padding: 0 8px; font-size: var(--fs-xs); background: var(--c-surface); color: var(--c-accent-ink); border: 1px solid var(--c-accent-soft); border-radius: 999px; }
-.btn-mini:hover { background: var(--c-accent-soft); }
 .icon-btn { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: var(--c-text-muted); border-radius: 50%; }
 .icon-btn:hover { background: var(--c-border); color: var(--c-text); }
 
@@ -464,11 +434,8 @@ select.input { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http:/
 .check-card.logged {
   background: var(--c-accent-soft);
   border-color: var(--c-accent);
-  opacity: 0.85;
-  cursor: default;
 }
-.check-card.logged:hover { background: var(--c-accent-soft); }
-.check-card input[type='checkbox']:disabled { cursor: default; opacity: 1; }
+.check-card.logged:hover { background: #c8e6cf; }
 .cc-tag {
   display: inline-block;
   margin-left: 6px;
