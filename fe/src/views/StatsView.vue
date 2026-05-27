@@ -60,34 +60,33 @@ const inMaxLabel = computed(() =>
     : '절대량 기준',
 )
 
-// 운동 강도 5단계 (절대값 기준) — MiniHeatmap의 levelOf와 동기화
-// levelOf: 0/r<0.25/r<0.5/r<0.75/r>=0.75, max=500이면 0/125/250/375
-// 실제 사용자 평가 기준(0/100/250/500)에 맞춰 라벨링
+// 운동 강도 5단계 (max=500, levelOf의 0/0.25/0.5/0.75 구간)
+// 첫/마지막 라벨은 양 끝 표시용, range는 각 색칸 아래 기준값
 const outLegend = [
-  { label: '휴식',   range: '0 kcal' },
-  { label: '가볍게', range: '~125' },
+  { label: '휴식',   range: '0' },
+  { label: '휴식',   range: '~125' },
   { label: '꾸준히', range: '~250' },
   { label: '강하게', range: '~375' },
   { label: '고강도', range: '375+' },
 ]
-// 음식 섭취 5단계 (권장 대비 %)
+// 음식 섭취 5단계 (권장 × 1.2가 max이므로 각 단계는 권장의 0/30/60/90%)
 const inLegend = computed(() => {
   if (recommendedKcal.value > 0) {
-    // max = 권장 × 1.2 이므로 단계는 max의 0/25/50/75% = 0/30/60/90% (권장의)
+    const r = recommendedKcal.value
     return [
-      { label: '미입력',  range: '0' },
-      { label: '많이 부족', range: '~30%' },
-      { label: '부족',     range: '~60%' },
-      { label: '적정 근처', range: '~90%' },
-      { label: '많음',     range: '90%+' },
+      { label: '없음',     range: '0' },
+      { label: '많이 부족', range: `~${Math.round(r * 0.3).toLocaleString()}` },
+      { label: '부족',     range: `~${Math.round(r * 0.6).toLocaleString()}` },
+      { label: '적정 근처', range: `~${Math.round(r * 0.9).toLocaleString()}` },
+      { label: '많음',     range: `${Math.round(r * 0.9).toLocaleString()}+` },
     ]
   }
   return [
-    { label: '0',  range: '' },
-    { label: '~625', range: '' },
-    { label: '~1,250', range: '' },
-    { label: '~1,875', range: '' },
-    { label: '2,500+', range: '' },
+    { label: '없음',  range: '0' },
+    { label: '적음',  range: '~625' },
+    { label: '보통',  range: '~1,250' },
+    { label: '많음',  range: '~1,875' },
+    { label: '많음',  range: '1,875+' },
   ]
 })
 
