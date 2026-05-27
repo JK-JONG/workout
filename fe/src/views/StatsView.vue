@@ -53,12 +53,6 @@ const dailyInMap = computed(() => {
   for (const e of allMeals.value) m.set(e.date, (m.get(e.date) ?? 0) + e.kcal)
   return m
 })
-const dailyWorkoutCount = computed(() => {
-  const m = new Map<string, number>()
-  for (const w of allWorkouts.value) m.set(w.date, (m.get(w.date) ?? 0) + 1)
-  return m
-})
-
 // ── 최근 N일 통계 ──
 function inWindow(date: string, days: number): boolean {
   const d = new Date(date)
@@ -295,10 +289,6 @@ const totalCounts = computed(() => ({
         <div>
           <div class="heatmap-label muted small">음식 섭취 (kcal{{ isAll ? ' · 합산' : '' }})</div>
           <MiniHeatmap :data="dailyInMap" :weeks="52" :max="2500" :colors="inColors" unit="kcal" />
-        </div>
-        <div>
-          <div class="heatmap-label muted small">운동 종목 수{{ isAll ? ' · 합산' : '' }}</div>
-          <MiniHeatmap :data="dailyWorkoutCount" :weeks="52" :max="6" :colors="outColors" unit="회" />
         </div>
       </div>
     </section>

@@ -107,15 +107,6 @@ const previewVolume = computed(() => {
   if (selectedExercise.value?.unit !== 'reps') return 0
   return setLogs.value.reduce((s, x) => s + x.reps * (x.weight || 0), 0)
 })
-const lastVolume = computed(() => {
-  const l = lastSameWorkout.value
-  if (!l || l.unit !== 'reps') return 0
-  if (l.setLogs?.length) return l.setLogs.reduce((s, x) => s + x.reps * (x.weight || 0), 0)
-  return (l.sets ?? 0) * (l.reps ?? 0) * (l.weight ?? 0)
-})
-const deltaKcal = computed(() => previewKcal.value - (lastSameWorkout.value?.kcal ?? 0))
-const deltaVolume = computed(() => previewVolume.value - lastVolume.value)
-
 function addWorkout() {
   const e = selectedExercise.value
   if (!e) return
@@ -154,13 +145,6 @@ function lastSummary(exId: string): string | null {
   }
   if (l.unit === 'time') return `${l.minutes ?? 0}분`
   return `${l.km ?? 0}km`
-}
-function youtubeQuery(e: ExerciseItem): string {
-  return `https://www.youtube.com/results?search_query=${encodeURIComponent(e.name + ' 자세 핏블리 김계란')}`
-}
-function fmtDelta(n: number, unit = ''): string {
-  if (n === 0) return `±0${unit}`
-  return `${n > 0 ? '+' : ''}${n}${unit}`
 }
 </script>
 
@@ -268,106 +252,65 @@ function fmtDelta(n: number, unit = ''): string {
       <div class="split-right">
         <div v-if="selectedExercise" class="picker">
           <div class="picker-head">
-            <div>
-              <div class="picker-name">
-                {{ selectedExercise.name }}
-                <span v-if="selectedExercise.search_en" class="picker-en">({{ selectedExercise.search_en }})</span>
-              </div>
-              <div class="picker-meta muted">
-                <span v-if="selectedExercise.routine" class="tag tag-soft">{{ selectedExercise.routine }}</span>
-                {{ selectedExercise.category }} · {{ selectedExercise.equipment }}
-                <span v-if="selectedExercise.body_part">· {{ selectedExercise.body_part }}</span>
-              </div>
+            <div class="picker-title">
+              <div class="picker-name">{{ selectedExercise.name }}</div>
+              <span v-if="selectedExercise.search_en" class="picker-en">{{ selectedExercise.search_en }}</span>
             </div>
             <button class="icon-btn" @click="selectedExercise = null" aria-label="닫기">×</button>
           </div>
 
-          <div class="visual">
-            <img
-              v-if="selectedExercise.image_url"
-              :src="selectedExercise.image_url"
-              :alt="selectedExercise.name"
-              class="visual-img"
-              loading="lazy"
-            />
-            <a
-              class="yt-chip"
-              :href="youtubeQuery(selectedExercise)"
-              target="_blank"
-              rel="noopener"
-              title="유튜브 자세 영상 검색"
-            >▶ 자세 영상</a>
+          <div v-if="lastSameWorkout" class="last-hint">
+            <span class="last-hint-k">최근</span>
+            <span class="last-hint-v num">{{ lastSummary(selectedExercise.id) }}</span>
+            <span class="last-hint-meta muted small">{{ lastSameWorkout.date }} · {{ lastSameWorkout.kcal }} kcal</span>
           </div>
 
           <div v-if="selectedExercise.unit === 'reps'" class="sets">
             <div class="sets-head">
-              <span class="field-label">세트별 (다음 + 5kg 자동)</span>
+              <span class="sets-title">세트</span>
               <button class="btn-mini" @click="addSet">+ 세트</button>
             </div>
-            <div class="set-head-row">
-              <span class="set-col-no"></span>
-              <span class="set-col-label">회</span>
-              <span class="set-col-label">kg</span>
-              <span class="set-col-step">−</span>
-              <span class="set-col-step">+</span>
-              <span class="set-col-action"></span>
-              <span class="set-col-action"></span>
-            </div>
             <div v-for="(s, i) in setLogs" :key="i" class="set-row">
-              <span class="set-no num">{{ i + 1 }}</span>
-              <input class="set-field num" type="number" v-model.number="s.reps" min="0" max="100" />
-              <input class="set-field num" type="number" v-model.number="s.weight" min="0" max="500" step="5" placeholder="0" />
-              <button class="step-btn" @click="s.weight = Math.max(0, (s.weight || 0) - 5)" title="−5kg">−</button>
-              <button class="step-btn" @click="s.weight = (s.weight || 0) + 5" title="+5kg">＋</button>
-              <button class="icon-btn" @click="copyDown(i)" title="아래 세트에 같은 값 복사">⇣</button>
-              <button class="icon-btn" @click="removeSet(i)" :disabled="setLogs.length <= 1" aria-label="삭제">×</button>
+              <span class="set-no">{{ i + 1 }}</span>
+              <div class="set-input-group">
+                <input class="set-field num" type="number" v-model.number="s.reps" min="0" max="100" aria-label="횟수" />
+                <span class="set-x">×</span>
+                <input class="set-field num" type="number" v-model.number="s.weight" min="0" max="500" step="5" placeholder="0" aria-label="무게(kg)" />
+                <span class="set-unit">kg</span>
+              </div>
+              <div class="set-steppers">
+                <button class="step-btn" @click="s.weight = Math.max(0, (s.weight || 0) - 5)" title="−5kg">−</button>
+                <button class="step-btn" @click="s.weight = (s.weight || 0) + 5" title="+5kg">＋</button>
+              </div>
+              <div class="set-actions">
+                <button class="icon-btn" @click="copyDown(i)" title="아래 세트에 같은 값 복사">⇣</button>
+                <button class="icon-btn" @click="removeSet(i)" :disabled="setLogs.length <= 1" aria-label="삭제">×</button>
+              </div>
             </div>
           </div>
-          <div v-else-if="selectedExercise.unit === 'time'" class="form-row-2">
+          <div v-else-if="selectedExercise.unit === 'time'" class="single-field">
             <label class="field">
-              <span class="field-label">시간(분)</span>
+              <span class="field-label">시간 (분)</span>
               <input class="input num" type="number" v-model.number="exMinutes" min="1" max="300" />
             </label>
           </div>
-          <div v-else class="form-row-2">
+          <div v-else class="single-field">
             <label class="field">
-              <span class="field-label">거리(km)</span>
+              <span class="field-label">거리 (km)</span>
               <input class="input num" type="number" v-model.number="exKm" min="0.1" max="50" step="0.1" />
             </label>
           </div>
 
-          <div class="compare">
-            <div class="compare-col">
-              <div class="compare-label">전날 동일 운동</div>
-              <div v-if="lastSameWorkout" class="compare-val">
-                <div class="num">{{ lastSummary(selectedExercise.id) }}</div>
-                <div class="muted small">{{ lastSameWorkout.date }} · {{ lastSameWorkout.kcal }} kcal</div>
-              </div>
-              <div v-else class="muted small">이전 기록 없음</div>
+          <div class="picker-foot">
+            <div class="estimate">
+              <span class="est-k">예상 소모</span>
+              <span class="est-v num accent">{{ previewKcal }}<span class="est-u">kcal</span></span>
+              <span v-if="selectedExercise.unit === 'reps' && previewVolume" class="est-vol muted small num">
+                · 볼륨 {{ previewVolume.toLocaleString() }}
+              </span>
             </div>
-            <div class="compare-col">
-              <div class="compare-label">오늘 예상</div>
-              <div class="compare-val">
-                <div class="num accent">{{ previewKcal }} kcal</div>
-                <div v-if="selectedExercise.unit === 'reps' && previewVolume" class="muted small num">
-                  볼륨 {{ previewVolume }} kg·rep
-                </div>
-              </div>
-            </div>
-            <div class="compare-col">
-              <div class="compare-label">변화</div>
-              <div class="compare-val">
-                <div class="num" :class="{ accent: deltaKcal > 0, warn: deltaKcal < 0 }">
-                  {{ fmtDelta(deltaKcal) }} kcal
-                </div>
-                <div v-if="selectedExercise.unit === 'reps' && lastVolume > 0" class="small num" :class="{ accent: deltaVolume > 0, warn: deltaVolume < 0 }">
-                  {{ fmtDelta(deltaVolume) }} 볼륨
-                </div>
-              </div>
-            </div>
+            <button class="btn btn-primary btn-add" @click="addWorkout">기록 추가</button>
           </div>
-
-          <button class="btn btn-primary btn-block" @click="addWorkout">기록 추가</button>
         </div>
 
         <!-- 우측 항상 표시되는 오늘 운동 기록 -->
@@ -522,35 +465,191 @@ function fmtDelta(n: number, unit = ''): string {
 .today-item-sub { font-size: 11px; line-height: 1.35; }
 .today-item-actions { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 
-.picker { padding: 12px; background: var(--c-surface-2); border: 1px solid var(--c-border); border-radius: var(--radius-md); display: grid; gap: 8px; }
-.picker-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-.picker-name { font-size: var(--fs-lg); font-weight: 600; }
-.picker-en { font-size: var(--fs-sm); color: var(--c-text-muted); font-weight: 400; margin-left: 6px; letter-spacing: 0; }
-.picker-meta { font-size: var(--fs-xs); display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px; }
-
-.form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-
-.sets { display: grid; gap: 3px; }
-.sets-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
-.set-head-row, .set-row {
+/* ─── picker (운동 입력 폼) ─── */
+.picker {
+  padding: 14px 16px 12px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
   display: grid;
-  grid-template-columns: 18px 42px 42px 22px 22px 20px 20px;
-  align-items: center; gap: 4px;
-  padding: 0 6px;
+  gap: 12px;
 }
-.set-head-row { font-size: 10px; color: var(--c-text-muted); padding-bottom: 2px; }
-.set-col-label, .set-col-step { text-align: center; }
-.set-row { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-sm); padding: 2px 6px; min-height: 26px; }
-.set-no { width: 18px; text-align: center; font-size: 10px; color: var(--c-text-muted); background: var(--c-chip); border-radius: 50%; height: 16px; line-height: 16px; }
-.set-field { width: 100%; height: 22px; padding: 0 4px; border: 1px solid var(--c-border-strong); border-radius: var(--radius-xs); background: var(--c-surface); font-size: 12px; text-align: right; }
-.set-field:focus { outline: none; border-color: var(--c-accent); box-shadow: 0 0 0 2px var(--c-accent-soft); }
-.step-btn { height: 20px; width: 22px; background: var(--c-surface-2); border: 1px solid var(--c-border-strong); border-radius: var(--radius-xs); color: var(--c-text-soft); font-size: 11px; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; transition: background 0.12s; }
-.step-btn:hover { background: var(--c-accent-soft); color: var(--c-accent-ink); border-color: var(--c-accent); }
+.picker-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--c-border);
+}
+.picker-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.picker-name {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--c-text);
+  line-height: 1.2;
+}
+.picker-en {
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  font-family: var(--font-num);
+  letter-spacing: 0;
+}
 
-.visual { position: relative; display: grid; gap: 4px; }
-.visual-img { width: 100%; border-radius: var(--radius-md); border: 1px solid var(--c-border); background: var(--c-surface-2); max-height: 150px; object-fit: contain; }
-.yt-chip { position: absolute; right: 6px; bottom: 6px; font-size: 10px; line-height: 1; padding: 4px 8px; background: rgba(255, 0, 0, 0.92); color: #fff; border-radius: 999px; box-shadow: 0 1px 4px rgba(0,0,0,0.18); letter-spacing: -0.01em; transition: background 0.15s, transform 0.1s; text-decoration: none; }
-.yt-chip:hover { background: #c30000; transform: translateY(-1px); }
+.last-hint {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--c-accent-soft);
+  border-radius: var(--radius-sm);
+}
+.last-hint-k {
+  font-size: var(--fs-xs);
+  color: var(--c-accent-ink);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.last-hint-v {
+  font-size: var(--fs-sm);
+  color: var(--c-accent-ink);
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+}
+.last-hint-meta { font-size: 11px; flex-shrink: 0; }
+
+.single-field { display: grid; gap: 6px; }
+
+/* 세트 입력 */
+.sets { display: grid; gap: 6px; }
+.sets-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 2px;
+}
+.sets-title {
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.set-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+}
+.set-no {
+  width: 22px; height: 22px;
+  display: inline-grid; place-items: center;
+  background: var(--c-chip);
+  color: var(--c-text-soft);
+  border-radius: 50%;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  font-family: var(--font-num);
+}
+.set-input-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.1fr) auto;
+  align-items: center;
+  gap: 4px;
+}
+.set-field {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
+  font-size: var(--fs-md);
+  font-weight: 500;
+  text-align: right;
+  font-family: var(--font-num);
+}
+.set-field:focus {
+  outline: none;
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 2px var(--c-accent-soft);
+}
+.set-x {
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+.set-unit {
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+.set-steppers { display: inline-flex; gap: 2px; }
+.step-btn {
+  width: 26px; height: 26px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--c-text-soft);
+  font-size: 14px;
+  font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.step-btn:hover {
+  background: var(--c-accent-soft);
+  color: var(--c-accent-ink);
+  border-color: var(--c-accent);
+}
+.set-actions { display: inline-flex; gap: 2px; }
+
+/* picker 하단 — 예상 + 기록 추가 */
+.picker-foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--c-border);
+}
+.estimate {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.est-k {
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.est-v {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.est-u {
+  font-size: var(--fs-sm);
+  color: var(--c-text-muted);
+  margin-left: 3px;
+  font-weight: 500;
+}
+.est-vol { letter-spacing: -0.005em; }
+.btn-add {
+  height: 38px;
+  padding: 0 18px;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+}
 
 .extras { margin-top: 12px; }
 .extras > summary { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: var(--c-surface-2); border: 1px solid var(--c-border-strong); border-radius: var(--radius-md); cursor: pointer; list-style: none; font-weight: 500; transition: background 0.15s; }
@@ -568,11 +667,6 @@ function fmtDelta(n: number, unit = ''): string {
 .extras-cat-name::before { content: '▸ '; color: var(--c-text-muted); }
 .extras-cat[open] > summary .extras-cat-name::before { content: '▾ '; }
 
-.compare { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--c-border); border: 1px solid var(--c-border); border-radius: var(--radius-md); overflow: hidden; }
-.compare-col { background: var(--c-surface); padding: 8px 10px; }
-.compare-label { font-size: var(--fs-xs); color: var(--c-text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
-.compare-val { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-md); }
-
 .btn { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px; font-size: var(--fs-sm); font-weight: 500; border-radius: var(--radius-md); transition: background 0.15s, color 0.15s, border 0.15s; }
 .btn-block { width: 100%; }
 .btn-primary { background: var(--c-accent); color: #fff; box-shadow: var(--shadow-xs); }
@@ -583,7 +677,15 @@ function fmtDelta(n: number, unit = ''): string {
 .icon-btn:hover { background: var(--c-border); color: var(--c-text); }
 .icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
-@media (max-width: 760px) {
-  .compare { grid-template-columns: 1fr; }
+/* 우측 컬럼 폭 확대 (380 → 400) */
+@media (min-width: 920px) {
+  .split { grid-template-columns: minmax(0, 1fr) 400px !important; }
 }
+
+/* today-card 시각 강조 */
+.today-card { gap: 6px; }
+.today-title { font-size: var(--fs-lg); font-weight: 700; }
+.today-item { padding: 8px 4px; }
+.today-item-name { font-size: var(--fs-md); font-weight: 600; }
+.today-item-sub { font-size: var(--fs-xs); }
 </style>
