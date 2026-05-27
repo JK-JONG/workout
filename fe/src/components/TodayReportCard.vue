@@ -185,10 +185,8 @@ const comment = computed(() => {
 const calcMethodLabel = computed(() => {
   const d = recommendedKcalDetail.value
   if (!d) return '입력 전'
-  if (d.method === 'mifflin') {
-    return `Mifflin-St Jeor · ${d.weightKg}kg / ${d.heightCm}cm / ${d.age}세 / ${d.sex === 'male' ? '남' : '여'} · 활동×${d.activity?.toFixed(2)}`
-  }
-  return `간이 추정 (체중 × 30 = ${d.tdee} kcal)`
+  if (d.method === 'mifflin') return 'Mifflin-St Jeor 공식'
+  return '간이 추정 (체중 × 30)'
 })
 
 function fmtWorkoutDetail(w: (typeof workoutsOfDate.value)[number]) {
