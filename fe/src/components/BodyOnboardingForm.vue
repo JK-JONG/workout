@@ -16,7 +16,6 @@ const emit = defineEmits<{
 const log = useLogStore()
 const {
   selectedDate,
-  weightKg: defaultWeight,
   sex: storedSex,
   birthYear: storedBirthYear,
   latestBody,
@@ -59,10 +58,12 @@ function submit() {
     muscleKg: muscle.value ?? undefined,
     note: note.value.trim() || undefined,
   })
-  // 운동 kcal 계산용 기준 체중도 함께 갱신
-  defaultWeight.value = weight.value
-  storedSex.value = sexInput.value
-  storedBirthYear.value = birthYearInput.value
+  // BMR 계산용 정보 + 운동 kcal 기준 체중을 명시적으로 저장 (ref set + localStorage 즉시 기록)
+  log.setProfileMeta({
+    sex: sexInput.value as Sex,
+    birthYear: birthYearInput.value,
+    weightKg: weight.value,
+  })
   emit('done')
 }
 </script>

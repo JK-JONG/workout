@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed } from 'vue'
 import { useProfileStorage } from '@/composables/useProfileStorage'
+import { useProfileStore } from '@/stores/profile'
 import type { Slot } from '@/data/mealPresets'
 
 export interface MealEntry {
@@ -82,6 +83,36 @@ export const useLogStore = defineStore('log', () => {
   const sex = useProfileStorage<Sex | ''>('sex', '')
   const birthYear = useProfileStorage<number | null>('birthYear', null)
   const activityLevel = useProfileStorage<number>('activityLevel', 1.55) // sedentary 1.2 / light 1.375 / moderate 1.55 / active 1.725
+
+  // 프로필 메타(BMR 계산용 정적 정보)를 명시적으로 저장한다.
+  // useProfileStorage의 watch 기반 자동 저장이 컴포넌트 unmount 타이밍과 겹쳐 flush 누락될
+  // 가능성을 차단하기 위해, ref 갱신과 동시에 localStorage.setItem을 직접 호출한다.
+  function setProfileMeta(payload: {
+    sex?: Sex
+    birthYear?: number | null
+    activityLevel?: number
+    weightKg?: number
+  }) {
+    const profile = useProfileStore()
+    const p = profile.activeProfile
+    if (!p) return
+    if (payload.sex !== undefined) {
+      sex.value = payload.sex
+      localStorage.setItem(`wt.p.${p}.sex`, JSON.stringify(payload.sex))
+    }
+    if (payload.birthYear !== undefined) {
+      birthYear.value = payload.birthYear
+      localStorage.setItem(`wt.p.${p}.birthYear`, JSON.stringify(payload.birthYear))
+    }
+    if (payload.activityLevel !== undefined) {
+      activityLevel.value = payload.activityLevel
+      localStorage.setItem(`wt.p.${p}.activityLevel`, JSON.stringify(payload.activityLevel))
+    }
+    if (payload.weightKg !== undefined) {
+      weightKg.value = payload.weightKg
+      localStorage.setItem(`wt.p.${p}.weight`, JSON.stringify(payload.weightKg))
+    }
+  }
 
   function addMeal(e: Omit<MealEntry, 'id' | 'createdAt'>) {
     meals.value = [...meals.value, { ...e, id: crypto.randomUUID(), createdAt: Date.now() }]
@@ -228,6 +259,7 @@ export const useLogStore = defineStore('log', () => {
     recommendedKcal,
     recommendedKcalDetail,
     sex, birthYear, activityLevel,
+    setProfileMeta,
     addMeal, addWorkout, addBody,
     removeMeal, removeWorkout, removeBody, updateBody,
     lastWorkoutOf,
