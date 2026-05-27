@@ -1,18 +1,35 @@
 import { defineStore } from 'pinia'
 import { computed } from 'vue'
 import { useProfileStorage } from '@/composables/useProfileStorage'
+import type { Slot } from '@/data/mealPresets'
 
 export interface MealEntry {
   id: string
   date: string        // YYYY-MM-DD
   foodId: string
   foodName: string
+  slot?: Slot         // 아침/점심/저녁/간식 — 신규 entry에서 명시. 옛 entry는 foodName 접두 파싱으로 추출.
   portion: number
   kcal: number
   protein: number
   carbs: number
   fat: number
   createdAt: number
+}
+
+// 옛 entry는 foodName이 "[아침] xxx" 형태였음. 신규 entry는 slot 필드 사용.
+const SLOT_TOKENS: Slot[] = ['아침', '점심', '저녁', '간식']
+export function resolveSlot(m: MealEntry): Slot | null {
+  if (m.slot) return m.slot
+  const match = m.foodName.match(/^\[([^\]]+)\]/)
+  if (!match) return null
+  for (const s of SLOT_TOKENS) if (match[1].includes(s)) return s
+  return null
+}
+export function displayName(m: MealEntry): string {
+  // 신규 entry는 slot 필드를 쓰므로 foodName이 깨끗함. 옛 entry는 "[아침] xxx" 접두 제거.
+  if (m.slot) return m.foodName
+  return m.foodName.replace(/^\[[^\]]+\]\s*/, '')
 }
 
 export interface SetLog {

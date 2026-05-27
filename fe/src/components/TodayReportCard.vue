@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useLogStore } from '@/stores/log'
+import { useLogStore, resolveSlot, displayName } from '@/stores/log'
 import { useProfileStore } from '@/stores/profile'
 
 const log = useLogStore()
@@ -172,8 +172,8 @@ function fmtWorkoutDetail(w: (typeof workoutsOfDate.value)[number]) {
       </div>
       <ul v-if="mealsOfDate.length" class="rows">
         <li v-for="m in mealsOfDate" :key="m.id" class="row">
-          <div class="row-name">{{ m.foodName }}</div>
-          <div class="row-mid"></div>
+          <div class="row-name">{{ displayName(m) }}</div>
+          <div class="row-mid">{{ resolveSlot(m) || '' }}</div>
           <div class="row-kcal warn">+{{ m.kcal }}</div>
         </li>
       </ul>

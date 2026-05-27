@@ -109,19 +109,17 @@ function pickProfile(name: string) {
         <div v-if="nameError" class="gate-error">{{ nameError }}</div>
       </div>
 
-      <!-- 신체 정보 입력 단계 (새 프로필) -->
+      <!-- 신체 정보 입력 단계 (새 프로필) — 필수 -->
       <div v-else-if="stage === 'body'" class="gate-form">
-        <label class="gate-label">신체 정보</label>
+        <label class="gate-label">신체 정보 <span class="req">필수</span></label>
         <p class="gate-hint">
-          <b>{{ activeProfile }}</b> 님의 시작 신체 정보를 입력하세요. 운동 칼로리 계산 기준이 됩니다.
-          체지방·근육량은 나중에 추가해도 됩니다.
+          <b>{{ activeProfile }}</b> 님의 시작 체중을 입력해주세요. 운동 칼로리 계산 기준이 됩니다.
+          체지방·근육량은 나중에 추가해도 되지만 체중은 시작 시 꼭 필요합니다.
         </p>
         <BodyOnboardingForm
           submit-label="시작하기"
-          skip-label="나중에 입력"
-          :show-skip="true"
+          :show-skip="false"
           @done="needsBodyForNewProfile = false"
-          @skip="needsBodyForNewProfile = false"
         />
       </div>
     </div>
@@ -181,6 +179,13 @@ function pickProfile(name: string) {
 .gate-error {
   font-size: var(--fs-xs);
   color: var(--c-danger);
+}
+.req {
+  font-size: var(--fs-xs);
+  color: var(--c-danger);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-left: 4px;
 }
 .gate-hint {
   font-size: var(--fs-xs);
