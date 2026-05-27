@@ -166,11 +166,6 @@ function fmtDelta(n: number, unit = ''): string {
     <div class="card-head">
       <h2 class="card-title">운동</h2>
       <div class="card-head-tools">
-        <label class="field-inline">
-          <span class="field-label">체중</span>
-          <input class="input input-sm num" type="number" v-model.number="weightKg" min="30" max="200" />
-          <span class="field-suffix">kg</span>
-        </label>
         <input
           class="input input-sm search-inline"
           type="text"
