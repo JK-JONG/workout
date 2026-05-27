@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useLogStore, type BodyEntry } from '@/stores/log'
+import { useLogStore, type BodyEntry, type Sex } from '@/stores/log'
 
 const log = useLogStore()
-const { selectedDate, body, bodyOfDate, latestBody } = storeToRefs(log)
+const {
+  selectedDate, body, bodyOfDate, latestBody,
+  sex: storedSex, birthYear: storedBirthYear, activityLevel: storedActivity,
+} = storeToRefs(log)
 
 interface Draft {
   weightKg: number | null
@@ -14,6 +17,69 @@ interface Draft {
 }
 
 const draft = ref<Draft>({ weightKg: null, bodyFatPct: null, muscleKg: null, note: '' })
+
+// ── 프로필 정보 수정 (신장/성별/출생연도/활동량) ──
+const thisYear = new Date().getFullYear()
+const editingProfile = ref(false)
+const profileDraft = ref({
+  heightCm: latestBody.value?.heightCm ?? null as number | null,
+  sex: (storedSex.value || '') as Sex | '',
+  birthYear: storedBirthYear.value as number | null,
+  activityLevel: storedActivity.value,
+})
+const profileErr = ref('')
+
+const ACTIVITY_LEVELS: { value: number; label: string; desc: string }[] = [
+  { value: 1.2,   label: '거의 안 함',   desc: '하루 종일 앉아 있음' },
+  { value: 1.375, label: '가벼움',       desc: '주 1~3회 가벼운 활동' },
+  { value: 1.55,  label: '보통',         desc: '주 3~5회 운동' },
+  { value: 1.725, label: '활발',         desc: '주 6~7회 운동' },
+  { value: 1.9,   label: '매우 활발',    desc: '하루 2번 운동/육체노동' },
+]
+
+function startEditProfile() {
+  profileDraft.value = {
+    heightCm: latestBody.value?.heightCm ?? null,
+    sex: (storedSex.value || '') as Sex | '',
+    birthYear: storedBirthYear.value,
+    activityLevel: storedActivity.value,
+  }
+  profileErr.value = ''
+  editingProfile.value = true
+}
+function cancelEditProfile() {
+  editingProfile.value = false
+  profileErr.value = ''
+}
+function saveProfile() {
+  profileErr.value = ''
+  const h = profileDraft.value.heightCm
+  if (!h || h < 100 || h > 230) { profileErr.value = '신장을 100~230cm 범위로 입력해주세요.'; return }
+  if (!profileDraft.value.sex) { profileErr.value = '성별을 선택해주세요.'; return }
+  const by = profileDraft.value.birthYear
+  if (!by || by < 1900 || by > thisYear) { profileErr.value = '출생연도를 정확히 입력해주세요.'; return }
+  // 신장은 BodyEntry 안에 들어있어서 별도 처리 필요 — 최신 entry의 heightCm 갱신,
+  // 또는 entry가 없으면 새로 추가
+  const latest = latestBody.value
+  if (latest && latest.heightCm !== h) {
+    log.updateBody(latest.id, { heightCm: h })
+  } else if (!latest) {
+    // 신체 entry가 아예 없으면 임시 entry 생성
+    log.addBody({ date: selectedDate.value, weightKg: 70, heightCm: h })
+  }
+  log.setProfileMeta({
+    sex: profileDraft.value.sex as Sex,
+    birthYear: by,
+    activityLevel: profileDraft.value.activityLevel,
+  })
+  editingProfile.value = false
+}
+
+const currentAge = computed(() => storedBirthYear.value ? thisYear - storedBirthYear.value : null)
+const activityLabel = computed(() => {
+  const a = storedActivity.value
+  return ACTIVITY_LEVELS.find(l => Math.abs(l.value - a) < 0.01)?.label ?? `×${a}`
+})
 
 // 날짜가 바뀌면 기존 기록을 폼에 채우거나 비움
 watch(selectedDate, syncDraft, { immediate: true })
@@ -75,6 +141,99 @@ function deltaText(curr: number | undefined | null, prev: number | undefined | n
 </script>
 
 <template>
+  <!-- 프로필 정보 (신장/성별/출생연도/활동량) -->
+  <section class="card">
+    <div class="card-head">
+      <h2 class="card-title">프로필 정보</h2>
+      <button v-if="!editingProfile" class="btn-mini" @click="startEditProfile">수정</button>
+    </div>
+
+    <div v-if="!editingProfile" class="profile-summary">
+      <div class="ps-cell">
+        <div class="ps-label">신장</div>
+        <div class="ps-value num">
+          <template v-if="latestBody?.heightCm">{{ latestBody.heightCm }} cm</template>
+          <template v-else>—</template>
+        </div>
+      </div>
+      <div class="ps-cell">
+        <div class="ps-label">성별</div>
+        <div class="ps-value">
+          <template v-if="storedSex === 'male'">남성</template>
+          <template v-else-if="storedSex === 'female'">여성</template>
+          <template v-else>—</template>
+        </div>
+      </div>
+      <div class="ps-cell">
+        <div class="ps-label">나이</div>
+        <div class="ps-value num">
+          <template v-if="currentAge">{{ currentAge }}세</template>
+          <template v-else>—</template>
+        </div>
+      </div>
+      <div class="ps-cell">
+        <div class="ps-label">활동량</div>
+        <div class="ps-value">{{ activityLabel }} <span class="muted small num">×{{ storedActivity.toFixed(2) }}</span></div>
+      </div>
+    </div>
+
+    <div v-else class="form-grid">
+      <div class="form-row-2">
+        <label class="field">
+          <span class="field-label required">신장 (cm)</span>
+          <input class="input num" type="number" v-model.number="profileDraft.heightCm" min="100" max="230" step="0.1" />
+        </label>
+        <label class="field">
+          <span class="field-label required">출생연도</span>
+          <input class="input num" type="number" v-model.number="profileDraft.birthYear" min="1900" :max="thisYear" />
+        </label>
+      </div>
+      <div class="field">
+        <span class="field-label required">성별</span>
+        <div class="seg">
+          <button
+            type="button"
+            class="seg-btn"
+            :class="{ active: profileDraft.sex === 'male' }"
+            @click="profileDraft.sex = 'male'"
+          >남성</button>
+          <button
+            type="button"
+            class="seg-btn"
+            :class="{ active: profileDraft.sex === 'female' }"
+            @click="profileDraft.sex = 'female'"
+          >여성</button>
+        </div>
+      </div>
+      <div class="field">
+        <span class="field-label">활동량</span>
+        <div class="activity-list">
+          <label
+            v-for="a in ACTIVITY_LEVELS"
+            :key="a.value"
+            class="activity-row"
+            :class="{ active: Math.abs(profileDraft.activityLevel - a.value) < 0.01 }"
+          >
+            <input
+              type="radio"
+              :value="a.value"
+              v-model.number="profileDraft.activityLevel"
+            />
+            <div class="activity-body">
+              <span class="activity-name">{{ a.label }} <span class="muted small num">×{{ a.value.toFixed(2) }}</span></span>
+              <span class="activity-desc muted small">{{ a.desc }}</span>
+            </div>
+          </label>
+        </div>
+      </div>
+      <div v-if="profileErr" class="err">{{ profileErr }}</div>
+      <div class="form-actions">
+        <button class="btn btn-ghost" @click="cancelEditProfile">취소</button>
+        <button class="btn btn-primary" @click="saveProfile">저장</button>
+      </div>
+    </div>
+  </section>
+
   <section class="card">
     <div class="card-head">
       <h2 class="card-title">신체 입력 · {{ selectedDate }}</h2>
@@ -164,4 +323,102 @@ function deltaText(curr: number | undefined | null, prev: number | undefined | n
 .icon-btn { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: var(--c-text-muted); border-radius: 50%; transition: background 0.15s; }
 .icon-btn:hover { background: var(--c-border); color: var(--c-text); }
 .empty { padding: 18px 10px; font-size: var(--fs-sm); color: var(--c-text-muted); text-align: center; }
+
+/* ─── 프로필 정보 요약 / 편집 ─── */
+.profile-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+@media (max-width: 640px) { .profile-summary { grid-template-columns: repeat(2, 1fr); } }
+.ps-cell {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+.ps-label {
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.ps-value {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--c-text);
+  letter-spacing: -0.01em;
+}
+
+.btn-mini {
+  height: 28px;
+  padding: 0 12px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--c-accent-ink);
+  background: var(--c-accent-soft);
+  border-radius: 999px;
+  transition: background 0.15s, color 0.15s;
+}
+.btn-mini:hover { background: var(--c-accent); color: #fff; }
+
+.seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 2px;
+  height: 38px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-md);
+}
+.seg-btn {
+  display: inline-grid; place-items: center;
+  height: 32px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--c-text-soft);
+  background: transparent;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s, color 0.15s;
+}
+.seg-btn:hover { color: var(--c-text); }
+.seg-btn.active { background: var(--c-accent); color: #fff; box-shadow: var(--shadow-xs); }
+
+.activity-list { display: grid; gap: 4px; }
+.activity-row {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.12s, border 0.12s;
+}
+.activity-row:hover { background: var(--c-surface-2); }
+.activity-row.active { background: var(--c-accent-soft); border-color: var(--c-accent); }
+.activity-row input[type='radio'] {
+  appearance: none; -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border: 1.5px solid var(--c-border-strong);
+  border-radius: 50%;
+  display: grid; place-items: center;
+}
+.activity-row.active input[type='radio'] {
+  border-color: var(--c-accent);
+  background: radial-gradient(circle, var(--c-accent) 0 4px, var(--c-surface) 5px 100%);
+}
+.activity-body { display: flex; flex-direction: column; gap: 1px; }
+.activity-name { font-size: var(--fs-sm); font-weight: 600; color: var(--c-text); }
+.activity-desc { font-size: var(--fs-xs); }
+
+.form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+.btn-ghost { background: transparent; color: var(--c-text-soft); border: 1px solid var(--c-border-strong); }
+.btn-ghost:hover { background: var(--c-surface-2); color: var(--c-text); }
+.err { font-size: var(--fs-xs); color: var(--c-danger); padding: 0 2px; }
 </style>
