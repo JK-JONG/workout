@@ -53,11 +53,6 @@ function submitName() {
   needsBodyForNewProfile.value = isNew
   profile.setProfile(n)
 }
-function pickProfile(name: string) {
-  needsBodyForNewProfile.value = false
-  profile.setProfile(name)
-}
-
 // ── 동기화 단계 ──────────────────────────────────────────
 // 모델: 관리자가 가진 "고정 동기화 코드" 하나를 기기마다 1회 입력한다.
 // 같은 코드를 입력한 기기끼리 같은 vault(DB)를 공유. 코드는 번들에 박지 않고
@@ -133,31 +128,27 @@ async function retrySync() {
         </template>
       </div>
 
-      <!-- 프로필 단계 -->
+      <!-- 프로필 단계 — 닉네임 직접 입력. 클릭만으로는 다른 프로필에 못 들어가게. -->
       <div v-else-if="stage === 'profile'" class="gate-form">
-        <label class="gate-label">이름</label>
-        <p class="gate-hint">데이터는 이름별로 따로 보관됩니다. 가족·친구가 같은 기기를 써도 안 섞입니다.</p>
-
-        <div v-if="knownProfiles.length" class="gate-known">
-          <button
-            v-for="n in knownProfiles"
-            :key="n"
-            class="gate-chip"
-            type="button"
-            @click="pickProfile(n)"
-          >{{ n }}</button>
-        </div>
+        <label class="gate-label">닉네임</label>
+        <p class="gate-hint">
+          기존 닉네임을 정확히 입력하면 그 기록으로, 새 이름이면 새로 시작합니다.
+          데이터는 이름별로 따로 보관됩니다.
+        </p>
+        <p v-if="knownProfiles.length" class="gate-hint gate-existing">
+          사용 중인 닉네임: <b>{{ knownProfiles.join(', ') }}</b>
+        </p>
 
         <form class="gate-name-form" @submit.prevent="submitName">
           <input
             class="gate-input"
             type="text"
             v-model="nameInput"
-            autocomplete="nickname"
-            placeholder="새 이름으로 시작"
+            autocomplete="off"
+            placeholder="닉네임 입력"
             maxlength="24"
           />
-          <button class="gate-btn" type="submit">시작</button>
+          <button class="gate-btn" type="submit">들어가기</button>
         </form>
         <div v-if="nameError" class="gate-error">{{ nameError }}</div>
       </div>
@@ -259,20 +250,13 @@ async function retrySync() {
   color: var(--c-text-muted);
   line-height: 1.5;
 }
-.gate-known {
-  display: flex; flex-wrap: wrap; gap: 6px;
+.gate-existing {
   margin-top: 4px;
-}
-.gate-chip {
-  padding: 6px 12px;
+  padding: 6px 10px;
   background: var(--c-accent-soft);
   color: var(--c-accent-ink);
-  border-radius: 999px;
-  font-size: var(--fs-sm);
-  border: 1px solid transparent;
-  transition: background 0.15s, border 0.15s;
+  border-radius: var(--radius-md);
 }
-.gate-chip:hover { border-color: var(--c-accent); }
 .gate-name-form {
   display: grid;
   grid-template-columns: 1fr auto;
