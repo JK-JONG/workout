@@ -83,7 +83,7 @@ const syncFailed = computed(() => syncStore.status === 'error')
 async function submitSyncCode() {
   syncFormError.value = ''
   if (!syncStore.setCode(syncCodeInput.value)) {
-    syncFormError.value = '코드는 16자 이상이어야 합니다.'
+    syncFormError.value = '코드는 24자여야 합니다 (대시 제외).'
     return
   }
   syncBusy.value = true                  // setCode 로 hasCode=true 가 돼도 화면 유지

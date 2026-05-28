@@ -12,6 +12,10 @@ export const useProfileStore = defineStore('profile', () => {
   const unlocked = useLocalStorage<boolean>('wt.gateUnlocked', false)
   const activeProfile = useLocalStorage<string>('wt.activeProfile', '')
   const knownProfiles = useLocalStorage<string[]>('wt.knownProfiles', [])
+  // 삭제된 프로필 이름 톰스톤. sync 시 vault 에 함께 올라가, 다른 기기에서도
+  // 같은 이름이 union 머지로 되살아나는 걸 막는다. 같은 이름으로 다시 생성하면
+  // setProfile 에서 톰스톤이 제거된다(부활).
+  const deletedProfiles = useLocalStorage<string[]>('wt.deletedProfiles', [])
 
   const ready = computed(() => unlocked.value && !!activeProfile.value)
 
@@ -38,6 +42,10 @@ export const useProfileStore = defineStore('profile', () => {
     if (!knownProfiles.value.includes(n)) {
       knownProfiles.value = [...knownProfiles.value, n]
     }
+    // 동일 이름을 다시 만들면 톰스톤에서 제거(부활) — 안 그러면 sync 머지에서 다시 빠짐.
+    if (deletedProfiles.value.includes(n)) {
+      deletedProfiles.value = deletedProfiles.value.filter(p => p !== n)
+    }
   }
 
   function clearProfile() {
@@ -46,6 +54,10 @@ export const useProfileStore = defineStore('profile', () => {
 
   function removeProfile(name: string) {
     knownProfiles.value = knownProfiles.value.filter(p => p !== name)
+    // 톰스톤 등록 — sync 시 다른 기기에서도 같은 이름이 사라지도록 한다.
+    if (!deletedProfiles.value.includes(name)) {
+      deletedProfiles.value = [...deletedProfiles.value, name]
+    }
     // 해당 프로필의 모든 localStorage 키 삭제
     const prefix = `wt.p.${name}.`
     const keys: string[] = []
@@ -58,7 +70,7 @@ export const useProfileStore = defineStore('profile', () => {
   }
 
   return {
-    unlocked, activeProfile, knownProfiles, ready,
+    unlocked, activeProfile, knownProfiles, deletedProfiles, ready,
     unlock, lock, setProfile, clearProfile, removeProfile, isValidName,
   }
 })

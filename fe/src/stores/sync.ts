@@ -53,7 +53,9 @@ export function formatCode(canonical: string): string {
   return (canonical.match(/.{1,4}/g) ?? []).join('-')
 }
 
-const MIN_CODE_LEN = 16
+// 발급되는 코드는 항상 24자(Crockford Base32, 120bit). 부분 입력(예: 앞 16자만)으로
+// 다른 vault 에 우연히 접근하는 사고를 막기 위해 정규화 길이를 정확히 24자로 검증한다.
+const CODE_LEN = 24
 
 // ── localStorage 직접 접근 헬퍼 ────────────────────────
 function pKey(profile: string, key: string): string {
@@ -92,7 +94,7 @@ export const useSyncStore = defineStore('sync', () => {
   let initialized = false
 
   const configured = computed(() => supabaseConfigured)
-  const hasCode = computed(() => code.value.length >= MIN_CODE_LEN)
+  const hasCode = computed(() => code.value.length === CODE_LEN)
   const enabled = computed(() => configured.value && hasCode.value)
   const displayCode = computed(() => formatCode(code.value))
 
@@ -134,7 +136,12 @@ export const useSyncStore = defineStore('sync', () => {
         }
       }
     }
-    return { v: VAULT_SCHEMA, knownProfiles: names, profiles }
+    return {
+      v: VAULT_SCHEMA,
+      knownProfiles: names,
+      deletedProfiles: [...profile.deletedProfiles],
+      profiles,
+    }
   }
 
   // ── 병합 결과를 localStorage + 활성 프로필 store 에 반영 ──
@@ -144,8 +151,22 @@ export const useSyncStore = defineStore('sync', () => {
     const log = useLogStore()
     const catalog = useCatalogStore()
     const active = profile.activeProfile
+    // 톰스톤(삭제 전파): 다른 기기에서 지운 프로필을 이 기기에서도 정리한다.
+    // (v1 vault 호환: deletedProfiles 가 없으면 빈 배열로 취급)
+    const deleted = new Set(v.deletedProfiles ?? [])
+
+    for (const name of deleted) {
+      const prefix = `wt.p.${name}.`
+      const keys: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (k && k.startsWith(prefix)) keys.push(k)
+      }
+      keys.forEach(k => localStorage.removeItem(k))
+    }
 
     for (const [name, p] of Object.entries(v.profiles)) {
+      if (deleted.has(name)) continue
       writeKey(name, 'workouts', p.workouts)
       writeKey(name, 'meals', p.meals)
       writeKey(name, 'body', p.body)
@@ -157,9 +178,14 @@ export const useSyncStore = defineStore('sync', () => {
     }
 
     profile.knownProfiles = uniq([...profile.knownProfiles, ...v.knownProfiles])
+      .filter(n => !deleted.has(n))
+    profile.deletedProfiles = [...deleted]   // 톰스톤 자체도 기기 간 공유
 
-    // 활성 프로필은 화면이 즉시 갱신되도록 live ref 도 교체.
-    if (active && v.profiles[active]) {
+    // 활성 프로필이 톰스톤된 경우 — 다른 기기에서 이 프로필을 지움 → 여기서도 해제.
+    if (active && deleted.has(active)) {
+      profile.activeProfile = ''
+    } else if (active && v.profiles[active]) {
+      // 활성 프로필은 화면이 즉시 갱신되도록 live ref 도 교체.
       const p = v.profiles[active]
       log.workouts = p.workouts
       log.meals = p.meals
@@ -258,7 +284,7 @@ export const useSyncStore = defineStore('sync', () => {
   }
   function setCode(input: string): boolean {
     const c = canonicalizeCode(input)
-    if (c.length < MIN_CODE_LEN) return false
+    if (c.length !== CODE_LEN) return false
     code.value = c
     remoteVersion.value = null
     return true
@@ -283,7 +309,7 @@ export const useSyncStore = defineStore('sync', () => {
       () => [
         log.workouts, log.meals, log.body, catalog.customFoods,
         log.weightKg, log.sex, log.birthYear, log.activityLevel,
-        profile.knownProfiles, profile.activeProfile,
+        profile.knownProfiles, profile.deletedProfiles, profile.activeProfile,
       ],
       () => {
         if (applying || !autoSync.value || !enabled.value) return

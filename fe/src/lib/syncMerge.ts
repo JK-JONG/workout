@@ -2,7 +2,10 @@ import type { WorkoutEntry, MealEntry, BodyEntry, Sex } from '@/stores/log'
 import type { FoodItem } from '@/data/foods'
 
 // vault(동기화 저장 단위) 페이로드 — 앱 전체 스냅샷(모든 프로필).
-export const VAULT_SCHEMA = 1
+// v2: deletedProfiles(톰스톤) 추가 — 한 기기에서 지운 프로필이 union 머지로
+// 다른 기기 sync 때 되살아나는 문제를 해결. 이전 vault(v1)는 deletedProfiles
+// 가 없으므로 mergeVaults 에서 `?? []` 로 안전하게 처리한다.
+export const VAULT_SCHEMA = 2
 
 export interface VaultMeta {
   weight?: number
@@ -22,6 +25,9 @@ export interface VaultProfile {
 export interface VaultData {
   v: number
   knownProfiles: string[]
+  // 삭제된 프로필 이름(톰스톤). 두 기기 union 머지에도 삭제가 살아남게 한다.
+  // 같은 이름으로 다시 생성하면 톰스톤에서 제거된다(profile.setProfile 참고).
+  deletedProfiles: string[]
   profiles: Record<string, VaultProfile>
 }
 
@@ -69,25 +75,34 @@ function mergeProfile(local: VaultProfile, remote: VaultProfile): VaultProfile {
 }
 
 // 두 vault 병합. 배열은 id 합집합, 메타는 스칼라 규칙.
-// ⚠️ 추가는 항상 보존되지만, 삭제는 전파되지 않는다(한쪽에서 지운 항목이
-//    다른 쪽에 남아있으면 합집합으로 되살아남). 단일 기기 사용 흐름에선 문제없음.
+// 프로필 삭제는 톰스톤(deletedProfiles)으로 전파한다 — 한 기기에서 지우면
+// 다른 기기 sync 때도 사라진다. (v1 vault 에는 톰스톤 필드가 없으므로 [] 로 취급)
 export function mergeVaults(local: VaultData, remote: VaultData): VaultData {
-  const names = unique([
+  const deleted = unique([
+    ...(local.deletedProfiles ?? []),
+    ...(remote.deletedProfiles ?? []),
+  ])
+  const deletedSet = new Set(deleted)
+  const allNames = unique([
     ...local.knownProfiles,
     ...Object.keys(local.profiles),
     ...remote.knownProfiles,
     ...Object.keys(remote.profiles),
   ])
   const profiles: Record<string, VaultProfile> = {}
-  for (const name of names) {
+  for (const name of allNames) {
+    if (deletedSet.has(name)) continue   // 톰스톤된 프로필은 데이터도 제외
     const l = local.profiles[name]
     const r = remote.profiles[name]
     if (l && r) profiles[name] = mergeProfile(l, r)
     else profiles[name] = l ?? r ?? emptyProfile()
   }
+  const known = unique([...local.knownProfiles, ...remote.knownProfiles])
+    .filter(n => !deletedSet.has(n))
   return {
     v: VAULT_SCHEMA,
-    knownProfiles: unique([...local.knownProfiles, ...remote.knownProfiles]),
+    knownProfiles: known,
+    deletedProfiles: deleted,
     profiles,
   }
 }
