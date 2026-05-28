@@ -1,35 +1,16 @@
 import { defineStore } from 'pinia'
 import { useLocalStorage } from '@vueuse/core'
-import { computed } from 'vue'
-
-// 단순 게이트 비밀번호. 코드 번들에 포함되므로 강한 보안은 아님 — URL 우연 접근 차단용.
-const GATE_PASSWORD = '10061006'
 
 // 프로필 이름 검증: 1~24자, 슬래시/따옴표 등 키 깨뜨릴 문자 차단
 const NAME_RE = /^[^\\/"'<>\s][^\\/"'<>]{0,23}$/
 
 export const useProfileStore = defineStore('profile', () => {
-  const unlocked = useLocalStorage<boolean>('wt.gateUnlocked', false)
   const activeProfile = useLocalStorage<string>('wt.activeProfile', '')
   const knownProfiles = useLocalStorage<string[]>('wt.knownProfiles', [])
   // 삭제된 프로필 이름 톰스톤. sync 시 vault 에 함께 올라가, 다른 기기에서도
   // 같은 이름이 union 머지로 되살아나는 걸 막는다. 같은 이름으로 다시 생성하면
   // setProfile 에서 톰스톤이 제거된다(부활).
   const deletedProfiles = useLocalStorage<string[]>('wt.deletedProfiles', [])
-
-  const ready = computed(() => unlocked.value && !!activeProfile.value)
-
-  function unlock(pw: string): boolean {
-    if (pw === GATE_PASSWORD) {
-      unlocked.value = true
-      return true
-    }
-    return false
-  }
-
-  function lock() {
-    unlocked.value = false
-  }
 
   function isValidName(name: string): boolean {
     return NAME_RE.test(name.trim())
@@ -70,7 +51,7 @@ export const useProfileStore = defineStore('profile', () => {
   }
 
   return {
-    unlocked, activeProfile, knownProfiles, deletedProfiles, ready,
-    unlock, lock, setProfile, clearProfile, removeProfile, isValidName,
+    activeProfile, knownProfiles, deletedProfiles,
+    setProfile, clearProfile, removeProfile, isValidName,
   }
 })

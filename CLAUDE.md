@@ -47,7 +47,7 @@ fe/
 │   ├── App.vue                    # AppGate + AppNav + RouterView 래퍼
 │   ├── main.ts
 │   ├── components/
-│   │   ├── AppGate.vue            # 비밀번호 + 프로필 선택 게이트
+│   │   ├── AppGate.vue            # 동기화 코드 + 프로필 선택 게이트
 │   │   ├── AppNav.vue             # 상단 네비 (기록/통계/설정)
 │   │   ├── DailySummary.vue       # kcal 섭취/소모/Net 카드
 │   │   ├── LineChart.vue          # SVG 라인 차트 (신체 추이용)
@@ -61,7 +61,7 @@ fe/
 │   │   ├── foods.ts               # 음식 카탈로그
 │   │   └── mealPresets.ts         # 박종권 식단 택1~5
 │   ├── stores/
-│   │   ├── profile.ts             # 비밀번호 해제·프로필 선택·삭제
+│   │   ├── profile.ts             # 프로필 선택·삭제(톰스톤)
 │   │   ├── catalog.ts             # 정적 데이터 + 커스텀 음식
 │   │   └── log.ts                 # 운동/식단/신체 기록
 │   ├── router/index.ts            # hash router · 3 routes
@@ -84,10 +84,10 @@ fe/
 
 ## 핵심 규칙
 
-### 게이트 비밀번호
-- 값: `10061006` (`fe/src/stores/profile.ts` 의 상수)
-- JS 번들에 포함되므로 진짜 보안은 아님 → URL 우연 접근 차단 수준.
-- 변경 시 `GATE_PASSWORD` 상수만 수정.
+### 게이트 (동기화 코드 전용)
+- 비밀번호 단계는 제거됨. 사이트 진입 시 곧장 **동기화 코드 입력 화면**이 뜬다.
+- 코드(24자, Crockford Base32)를 모르면 아무것도 못 봄. 코드는 번들에 박지 않으므로 관리자만 안다.
+- 코드는 한 기기당 1회 입력 → localStorage 저장 → 이후 자동 통과.
 
 ### 프로필 시스템
 - 모든 데이터 키는 `wt.p.<프로필이름>.<항목>` 형태로 localStorage 에 분리 저장.
@@ -109,7 +109,7 @@ fe/
 - **저장소**: Supabase `vaults` 테이블(`code_hash`/`data`/`version`/`updated_at`). RLS ON + 정책 0개로 직접 접근 차단, 접근은 `sync_pull`/`sync_push` RPC(`SECURITY DEFINER`, `search_path` 고정)로만. 해시는 내장 `sha256()` 사용(pgcrypto 불필요). SQL은 `supabase/migrations/0001_vaults.sql` — Supabase **SQL Editor**에 붙여넣어 적용.
 - **키/URL**: `VITE_SUPABASE_URL`·`VITE_SUPABASE_ANON_KEY` (둘 다 public, 노출 안전). 로컬은 `fe/.env.local`, Pages 빌드는 워크플로우 `env`(또는 repo Variables)로 주입.
 - **흐름**: 앱 진입 시 1회 pull→병합→push, 이후 변경분 자동 push(디바운스 1.5s). 충돌은 `version` 낙관적 잠금 + id 기반 union 재병합(최대 3회).
-- **게이트**: 비번(`10061006`) 통과 후 **동기화 코드 입력 단계**가 강제됨. 코드 없는 기기는 이 화면에서 빠져나갈 수 없다(재접속에도 동일). 코드는 정확히 24자(Crockford Base32) — 부분 입력으로 다른 vault 에 우연히 접근하는 사고를 막는다.
+- **게이트**: 사이트 진입 첫 화면이 **동기화 코드 입력**. 코드 없는 기기는 이 화면에서 빠져나갈 수 없다(재접속에도 동일). 코드는 정확히 24자(Crockford Base32) — 부분 입력으로 다른 vault 에 우연히 접근하는 사고를 막는다.
 - **삭제 전파(v2)**: 프로필 삭제는 `deletedProfiles` 톰스톤으로 vault 에 함께 올라가, 다른 기기에서도 union 머지 후 제외된다. 같은 이름을 다시 만들면 톰스톤에서 자동 제거(부활). 운동/식단/신체 항목 개별 삭제는 여전히 union 머지라 톰스톤 없음(v1 트레이드오프 유지).
 - **관련 파일**: `lib/supabase.ts`, `lib/syncMerge.ts`(순수 병합), `stores/sync.ts`(로직·상태), `views/SettingsView.vue`(동기화 섹션), App.vue `onMounted`에서 `useSyncStore().init()`.
 

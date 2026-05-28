@@ -9,7 +9,7 @@ import { useSyncStore } from '@/stores/sync'
 const profile = useProfileStore()
 const log = useLogStore()
 const syncStore = useSyncStore()
-const { unlocked, activeProfile, knownProfiles } = storeToRefs(profile)
+const { activeProfile, knownProfiles } = storeToRefs(profile)
 const { body, sex, birthYear, latestBody } = storeToRefs(log)
 
 // 새 프로필 강제 신체 입력 모드
@@ -25,11 +25,10 @@ const needsMetaUpdate = computed(() => {
   return false
 })
 
-const stage = computed<'password' | 'sync' | 'profile' | 'body' | 'meta' | 'done'>(() => {
-  if (!unlocked.value) return 'password'
+const stage = computed<'sync' | 'profile' | 'body' | 'meta' | 'done'>(() => {
   // 동기화 미설정(코드 없음) 기기는 무조건 이 화면으로 보낸다.
-  // setCode/generateCode 가 code 를 채우면 hasCode=true 가 되므로, 네트워크
-  // 왕복 동안에도 화면을 붙잡으려고 syncBusy 를 함께 본다. (env 미설정이면 생략)
+  // setCode 가 code 를 채우면 hasCode=true 가 되므로, 네트워크 왕복 동안에도
+  // 화면을 붙잡으려고 syncBusy 를 함께 본다. (env 미설정이면 생략 → 곧장 profile)
   if (syncStore.configured && (!syncStore.hasCode || syncBusy.value)) return 'sync'
   if (!activeProfile.value) return 'profile'
   if (needsBodyForNewProfile.value && body.value.length === 0) return 'body'
@@ -42,16 +41,6 @@ watch(activeProfile, () => {
   needsBodyForNewProfile.value = false
   dismissedMeta.value = false
 })
-
-const pwInput = ref('')
-const pwError = ref('')
-function submitPw() {
-  pwError.value = ''
-  if (!profile.unlock(pwInput.value)) {
-    pwError.value = '비밀번호가 맞지 않습니다.'
-    pwInput.value = ''
-  }
-}
 
 const nameInput = ref('')
 const nameError = ref('')
@@ -110,25 +99,8 @@ async function retrySync() {
         <span class="gate-name">Workout Tracker</span>
       </div>
 
-      <!-- 비밀번호 단계 -->
-      <form v-if="stage === 'password'" class="gate-form" @submit.prevent="submitPw">
-        <label class="gate-label">비밀번호</label>
-        <input
-          class="gate-input"
-          type="password"
-          v-model="pwInput"
-          inputmode="numeric"
-          autocomplete="current-password"
-          autofocus
-          placeholder="알려받은 비밀번호"
-        />
-        <div v-if="pwError" class="gate-error">{{ pwError }}</div>
-        <button class="gate-btn" type="submit">들어가기</button>
-        <p class="gate-hint">처음 한 번만 입력하면 이 기기에서는 다시 묻지 않습니다.</p>
-      </form>
-
-      <!-- 동기화 단계 — 코드 없는 기기는 고정 코드를 입력해야 진행 -->
-      <div v-else-if="stage === 'sync'" class="gate-form">
+      <!-- 동기화 단계 — 코드 없는 기기는 고정 코드를 입력해야 진행 (첫 화면) -->
+      <div v-if="stage === 'sync'" class="gate-form">
         <label class="gate-label">동기화 코드 <span class="req">필수</span></label>
         <p class="gate-hint">
           동기화 코드를 입력하면 이 기기가 같은 데이터에 연결됩니다.

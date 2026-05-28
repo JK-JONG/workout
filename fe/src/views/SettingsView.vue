@@ -196,7 +196,6 @@ function startNewProfile() {
 }
 
 function logout() { profile.clearProfile() }
-function lockApp() { profile.clearProfile(); profile.lock() }
 
 function confirmClearAll() {
   if (!confirm(`현재 프로필(${activeProfile.value})의 모든 기록을 삭제합니다. 되돌릴 수 없습니다. 진행할까요?`)) return
@@ -324,7 +323,6 @@ function removeCustomFood(id: string) {
       </div>
       <div class="actions">
         <button class="btn btn-ghost" @click="logout">프로필 전환</button>
-        <button class="btn btn-ghost" @click="lockApp">전체 잠금</button>
       </div>
     </section>
 
