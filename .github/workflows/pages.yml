@@ -36,6 +36,11 @@ jobs:
         env:
           # GitHub Pages: https://<user>.github.io/<repo>/  →  base = /<repo>/
           VITE_BASE: /${{ github.event.repository.name }}/
+          # Supabase 동기화 (선택). URL·키 모두 브라우저에 공개되는 public 값이라 노출 안전.
+          # repo Settings → Secrets and variables → Actions → Variables 에 같은 이름으로
+          # 등록하면 아래 기본값 대신 그 값이 쓰인다. 동기화를 끄려면 빈 변수로 덮어쓰기.
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://lsqqdjnyzdshcpiyhibn.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || 'sb_publishable_xxRmwJ7k-uW1Yf7I-5K_fw_jAJAglFa' }}
         run: npm run build
 
       - uses: actions/upload-pages-artifact@v3

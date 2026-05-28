@@ -5,6 +5,7 @@ import { useLocalStorage } from '@vueuse/core'
 import { useProfileStore } from '@/stores/profile'
 import { useLogStore } from '@/stores/log'
 import { useCatalogStore } from '@/stores/catalog'
+import { useSyncStore } from '@/stores/sync'
 import { useJsonl, type ImportResult } from '@/composables/useJsonl'
 import { colorForProfile } from '@/composables/useAllProfilesData'
 import type { BodyEntry, Sex } from '@/stores/log'
@@ -24,6 +25,58 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const importMode = ref<'merge' | 'replace'>('merge')
 const importResult = ref<ImportResult | null>(null)
 const importError = ref('')
+
+// ── 기기 간 동기화 ──────────────────────────────────────
+const sync = useSyncStore()
+const {
+  status: syncStatus,
+  errorMsg: syncError,
+  displayCode,
+  autoSync,
+  lastSyncedAt,
+  configured: syncConfigured,
+  hasCode,
+} = storeToRefs(sync)
+
+const codeInput = ref('')
+const codeInputError = ref('')
+const showCodeEntry = ref(false)
+const codeRevealed = ref(false)
+const copied = ref(false)
+
+const lastSyncedLabel = computed(() => {
+  if (!lastSyncedAt.value) return '아직 없음'
+  return new Date(lastSyncedAt.value).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })
+})
+
+function genCode() {
+  if (hasCode.value && !confirm('새 코드를 만들면 이 기기의 기존 코드 연결이 끊어집니다. 계속할까요?')) return
+  sync.generateCode()
+  codeRevealed.value = true
+  void sync.syncNow()
+}
+async function copyCode() {
+  try {
+    await navigator.clipboard.writeText(sync.displayCode)
+    copied.value = true
+    setTimeout(() => (copied.value = false), 1500)
+  } catch { /* 클립보드 차단 시 무시 — 사용자가 직접 선택·복사 */ }
+}
+function applyCodeEntry() {
+  codeInputError.value = ''
+  if (!sync.setCode(codeInput.value)) {
+    codeInputError.value = '코드가 너무 짧거나 형식이 올바르지 않습니다.'
+    return
+  }
+  codeInput.value = ''
+  showCodeEntry.value = false
+  codeRevealed.value = false
+  void sync.syncNow()
+}
+function disconnectSync() {
+  if (!confirm('이 기기의 동기화 연결을 해제합니다.\n클라우드 데이터는 유지되며, 같은 코드로 다시 연결할 수 있습니다.')) return
+  sync.clearCode()
+}
 
 // ── 관리자 가드 ─────────────────────────────────────────
 const adminUnlocked = useLocalStorage<boolean>('wt.adminUnlocked', false)
@@ -333,6 +386,95 @@ function removeCustomFood(id: string) {
         <button class="btn btn-primary" type="submit">새 프로필 시작</button>
       </form>
       <div v-if="newProfileError" class="err">{{ newProfileError }}</div>
+    </section>
+
+    <!-- 기기 간 동기화 -->
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">기기 간 동기화</h2>
+        <span class="muted small">클라우드</span>
+      </div>
+
+      <!-- 백엔드 미설정 -->
+      <p v-if="!syncConfigured" class="hint">
+        동기화 백엔드가 설정되지 않은 빌드입니다. 이 기기는 로컬(브라우저) 전용으로 동작하며,
+        다른 기기로 옮기려면 아래 <b>백업·복원</b>의 JSONL을 사용하세요.
+      </p>
+
+      <template v-else>
+        <p class="hint">
+          한 PC에서 <b>동기화 코드</b>를 만들고, 다른 PC의 이 화면에서 같은 코드를 입력하면
+          운동·식단·신체 기록이 자동으로 공유됩니다.
+        </p>
+
+        <!-- 코드 보유: 연결됨 -->
+        <template v-if="hasCode">
+          <div class="sync-codebox">
+            <div class="sync-code-label">내 동기화 코드</div>
+            <div class="sync-code-row">
+              <code class="sync-code" :class="{ masked: !codeRevealed }">{{ codeRevealed ? displayCode : '•••• •••• •••• •••• •••• ••••' }}</code>
+              <button class="btn btn-ghost btn-sm" @click="codeRevealed = !codeRevealed">{{ codeRevealed ? '숨기기' : '보기' }}</button>
+              <button class="btn btn-ghost btn-sm" @click="copyCode">{{ copied ? '복사됨!' : '복사' }}</button>
+            </div>
+          </div>
+
+          <div class="sync-status-row">
+            <span class="sync-dot" :class="syncStatus"></span>
+            <span class="sync-status-text">
+              <template v-if="syncStatus === 'syncing'">동기화 중…</template>
+              <template v-else-if="syncStatus === 'ok'">동기화됨</template>
+              <template v-else-if="syncStatus === 'error'">오류</template>
+              <template v-else>대기</template>
+            </span>
+            <span class="muted small">· 마지막: {{ lastSyncedLabel }}</span>
+          </div>
+          <div v-if="syncError" class="err">{{ syncError }}</div>
+
+          <label class="sync-toggle">
+            <input type="checkbox" v-model="autoSync" />
+            <span>변경 시 자동 동기화</span>
+          </label>
+
+          <div class="block-row">
+            <button class="btn btn-primary" :disabled="syncStatus === 'syncing'" @click="sync.syncNow()">지금 동기화</button>
+            <button class="btn btn-ghost" @click="genCode">새 코드 생성</button>
+            <button class="btn btn-ghost" @click="disconnectSync">연결 해제</button>
+          </div>
+
+          <div class="sync-warn">
+            ⚠️ <b>이 코드를 잃으면 다른 PC에서 데이터를 가져올 수 없습니다.</b>
+            비밀번호 관리자·메모 등에 따로 보관하세요. (추가 오프라인 백업은 아래 JSONL 내보내기)
+          </div>
+          <div class="sync-note muted small">
+            동기화는 <b>추가에는 항상 안전</b>하지만, <b>삭제</b>는 한 PC에서만 편집할 때 안전합니다.
+            두 PC에서 동시에 오프라인 편집하면 지운 기록이 되살아날 수 있습니다.
+          </div>
+        </template>
+
+        <!-- 코드 없음: 시작 -->
+        <template v-else>
+          <div class="block-row">
+            <button class="btn btn-primary" @click="genCode">동기화 코드 만들기</button>
+            <button class="btn btn-ghost" @click="showCodeEntry = !showCodeEntry">기존 코드 입력</button>
+          </div>
+          <form v-if="showCodeEntry" class="sync-entry" @submit.prevent="applyCodeEntry">
+            <input
+              class="input"
+              v-model="codeInput"
+              placeholder="다른 PC에서 만든 코드 붙여넣기"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button class="btn btn-primary" type="submit">연결</button>
+          </form>
+          <p v-if="showCodeEntry" class="sync-note muted small">
+            새 PC라면: 아무 <b>임시 프로필</b>로 입장 → 여기서 코드 연결 → 동기화되면 실제 프로필로 전환하세요.
+            입장용 임시 프로필은 동기화 뒤 <b>프로필 영구 삭제</b>에서 지우면 됩니다
+            (안 지우면 클라우드에도 함께 남습니다).
+          </p>
+          <div v-if="codeInputError" class="err">{{ codeInputError }}</div>
+        </template>
+      </template>
     </section>
 
     <!-- 백업·복원 -->
@@ -802,6 +944,54 @@ code {
 }
 
 .foot { padding: 8px 4px 0; text-align: center; }
+
+/* ─── 기기 간 동기화 ─── */
+.sync-codebox {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.sync-code-label {
+  font-size: var(--fs-xs); color: var(--c-text-muted);
+  letter-spacing: 0.04em; text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.sync-code-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sync-code {
+  flex: 1; min-width: 200px;
+  font-family: var(--font-num);
+  font-size: var(--fs-md);
+  letter-spacing: 0.08em;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  word-break: break-all;
+}
+.sync-code.masked { letter-spacing: 0.12em; color: var(--c-text-muted); }
+.sync-status-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: var(--fs-sm); }
+.sync-status-text { font-weight: 600; }
+.sync-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c-text-muted); flex-shrink: 0; }
+.sync-dot.syncing { background: var(--c-warn); animation: sync-pulse 1s ease-in-out infinite; }
+.sync-dot.ok { background: var(--c-accent); }
+.sync-dot.error { background: var(--c-danger); }
+@keyframes sync-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.sync-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-sm); margin: 6px 0 12px; cursor: pointer; }
+.sync-toggle input { width: 15px; height: 15px; accent-color: var(--c-accent); }
+.sync-entry { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 10px; }
+.sync-warn {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #fff8f7;
+  border: 1px solid #f3c5c5;
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--c-text-soft);
+}
+.sync-note { margin-top: 8px; line-height: 1.55; }
 
 /* ─── 잠금 화면 ─── */
 .locked {

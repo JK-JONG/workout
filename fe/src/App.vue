@@ -1,7 +1,13 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import AppGate from '@/components/AppGate.vue'
 import AppNav from '@/components/AppNav.vue'
+import { useSyncStore } from '@/stores/sync'
+
+// 동기화: 코드가 있으면 앱 진입 시 한 번 pull→병합→push, 이후 변경분 자동 push.
+// env(Supabase) 미설정이면 init 내부에서 no-op.
+onMounted(() => useSyncStore().init())
 </script>
 
 <template>
