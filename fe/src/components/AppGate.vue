@@ -4,9 +4,11 @@ import { storeToRefs } from 'pinia'
 import { useProfileStore } from '@/stores/profile'
 import { useLogStore } from '@/stores/log'
 import BodyOnboardingForm from '@/components/BodyOnboardingForm.vue'
+import { useSyncStore } from '@/stores/sync'
 
 const profile = useProfileStore()
 const log = useLogStore()
+const syncStore = useSyncStore()
 const { unlocked, activeProfile, knownProfiles } = storeToRefs(profile)
 const { body, sex, birthYear, latestBody } = storeToRefs(log)
 
@@ -23,8 +25,12 @@ const needsMetaUpdate = computed(() => {
   return false
 })
 
-const stage = computed<'password' | 'profile' | 'body' | 'meta' | 'done'>(() => {
+const stage = computed<'password' | 'sync' | 'profile' | 'body' | 'meta' | 'done'>(() => {
   if (!unlocked.value) return 'password'
+  // 동기화 미설정(코드 없음) 기기는 무조건 이 화면으로 보낸다.
+  // setCode/generateCode 가 code 를 채우면 hasCode=true 가 되므로, 네트워크
+  // 왕복 동안에도 화면을 붙잡으려고 syncBusy 를 함께 본다. (env 미설정이면 생략)
+  if (syncStore.configured && (!syncStore.hasCode || syncBusy.value)) return 'sync'
   if (!activeProfile.value) return 'profile'
   if (needsBodyForNewProfile.value && body.value.length === 0) return 'body'
   if (needsMetaUpdate.value && !dismissedMeta.value) return 'meta'
@@ -62,6 +68,59 @@ function pickProfile(name: string) {
   needsBodyForNewProfile.value = false
   profile.setProfile(name)
 }
+
+// ── 동기화 단계 ──────────────────────────────────────────
+// 코드 없는 기기는 stage='sync' 에 머물러, 코드 입력 또는 발급을 해야 넘어간다.
+// syncBusy: 네트워크 왕복(0.5~2s) 동안 화면을 유지하기 위한 로컬 가드.
+const syncCodeInput = ref('')
+const syncFormError = ref('')
+const syncBusy = ref(false)
+const syncMode = ref<'choose' | 'generated'>('choose')
+const copied = ref(false)
+const syncing = computed(() => syncStore.status === 'syncing')
+const syncFailed = computed(() => syncStore.status === 'error')
+
+async function submitSyncCode() {
+  syncFormError.value = ''
+  if (!syncStore.setCode(syncCodeInput.value)) {
+    syncFormError.value = '코드 형식이 올바르지 않습니다 (16자 이상).'
+    return
+  }
+  syncBusy.value = true            // setCode 로 hasCode=true 가 돼도 화면 유지
+  const ok = await syncStore.syncNow()
+  if (ok) syncBusy.value = false   // 성공 → 프로필 단계로 진행
+  // 실패면 syncBusy 유지 → 아래 에러/재시도 UI 노출
+}
+
+function generateSyncCode() {
+  syncStore.generateCode()         // code 채움 → hasCode=true
+  syncMode.value = 'generated'
+  syncBusy.value = true            // 생성된 코드를 보여주며 화면 유지
+  syncFormError.value = ''
+}
+
+async function confirmGenerated() {
+  const ok = await syncStore.syncNow()  // 현재 로컬 데이터를 vault 로 업로드
+  if (ok) syncBusy.value = false
+}
+
+async function retrySync() {
+  const ok = await syncStore.syncNow()
+  if (ok) syncBusy.value = false
+}
+
+// 네트워크 실패 시 탈출구: 코드는 이미 저장됐으므로 다음 접속 때 자동 재동기화된다.
+function proceedAnyway() {
+  syncBusy.value = false
+}
+
+async function copyCode() {
+  try {
+    await navigator.clipboard.writeText(syncStore.displayCode)
+    copied.value = true
+    setTimeout(() => { copied.value = false }, 1500)
+  } catch { /* 클립보드 미지원 환경은 무시 */ }
+}
 </script>
 
 <template>
@@ -92,6 +151,61 @@ function pickProfile(name: string) {
         <button class="gate-btn" type="submit">들어가기</button>
         <p class="gate-hint">처음 한 번만 입력하면 이 기기에서는 다시 묻지 않습니다.</p>
       </form>
+
+      <!-- 동기화 단계 — 코드 없는 기기는 여기서 입력/발급해야 진행 -->
+      <div v-else-if="stage === 'sync'" class="gate-form">
+        <!-- 진행 중 / 실패 -->
+        <template v-if="syncBusy && (syncing || syncFailed)">
+          <label class="gate-label">기기 간 동기화</label>
+          <div v-if="syncing" class="gate-busy">동기화 중…</div>
+          <template v-else>
+            <div class="gate-error">{{ syncStore.errorMsg }}</div>
+            <button class="gate-btn" type="button" @click="retrySync">다시 시도</button>
+            <button class="gate-btn-ghost" type="button" @click="proceedAnyway">
+              건너뛰고 계속 (다음 접속 때 자동 동기화)
+            </button>
+          </template>
+        </template>
+
+        <!-- 새 코드 발급 결과 -->
+        <template v-else-if="syncMode === 'generated'">
+          <label class="gate-label">새 동기화 코드</label>
+          <p class="gate-hint">
+            이 코드를 <b>다른 기기에서 입력</b>하면 같은 기록을 보게 됩니다. 안전한 곳에 적어두세요.
+          </p>
+          <div class="gate-code" @click="copyCode">{{ syncStore.displayCode }}</div>
+          <button class="gate-btn-ghost" type="button" @click="copyCode">
+            {{ copied ? '복사됨 ✓' : '코드 복사' }}
+          </button>
+          <button class="gate-btn" type="button" :disabled="syncing" @click="confirmGenerated">
+            계속
+          </button>
+        </template>
+
+        <!-- 입력 / 발급 선택 -->
+        <template v-else>
+          <label class="gate-label">기기 간 동기화 <span class="req">필수</span></label>
+          <p class="gate-hint">
+            여러 기기에서 같은 기록을 보려면 동기화 코드가 필요합니다.
+            다른 기기에서 쓰던 코드가 있으면 입력하고, 처음이면 새 코드를 발급하세요.
+          </p>
+          <form class="gate-name-form" @submit.prevent="submitSyncCode">
+            <input
+              class="gate-input"
+              type="text"
+              v-model="syncCodeInput"
+              autocomplete="off"
+              autocapitalize="characters"
+              placeholder="XXXX-XXXX-XXXX-…"
+            />
+            <button class="gate-btn" type="submit">동기화</button>
+          </form>
+          <div v-if="syncFormError" class="gate-error">{{ syncFormError }}</div>
+          <button class="gate-btn-ghost" type="button" @click="generateSyncCode">
+            새 코드 발급 (이 기기로 처음 시작)
+          </button>
+        </template>
+      </div>
 
       <!-- 프로필 단계 -->
       <div v-else-if="stage === 'profile'" class="gate-form">
@@ -240,4 +354,34 @@ function pickProfile(name: string) {
   align-items: end;
 }
 .gate-name-form .gate-btn { padding: 0 14px; }
+.gate-btn-ghost {
+  height: 36px;
+  background: transparent;
+  color: var(--c-text-muted);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  transition: border 0.15s, color 0.15s;
+}
+.gate-btn-ghost:hover { border-color: var(--c-accent); color: var(--c-accent-ink); }
+.gate-code {
+  padding: 12px;
+  background: var(--c-accent-soft);
+  color: var(--c-accent-ink);
+  border-radius: var(--radius-md);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: center;
+  word-break: break-all;
+  cursor: pointer;
+  user-select: all;
+}
+.gate-busy {
+  font-size: var(--fs-sm);
+  color: var(--c-text-muted);
+  padding: 8px 0;
+}
 </style>
