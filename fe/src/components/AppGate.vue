@@ -75,10 +75,12 @@ function pickProfile(name: string) {
 const syncCodeInput = ref('')
 const syncFormError = ref('')
 const syncBusy = ref(false)
-const syncMode = ref<'choose' | 'generated'>('choose')
+const peeking = ref(false)
+const syncMode = ref<'choose' | 'generated' | 'confirmNew'>('choose')
 const copied = ref(false)
 const syncing = computed(() => syncStore.status === 'syncing')
 const syncFailed = computed(() => syncStore.status === 'error')
+const syncWorking = computed(() => syncing.value || peeking.value)
 
 async function submitSyncCode() {
   syncFormError.value = ''
@@ -87,9 +89,35 @@ async function submitSyncCode() {
     return
   }
   syncBusy.value = true            // setCode 로 hasCode=true 가 돼도 화면 유지
+  // 먼저 조회만 — 이 코드로 된 vault 가 있는지 확인(오타로 빈 vault 새로 만드는 사고 방지).
+  peeking.value = true
+  try {
+    const { exists } = await syncStore.peek()
+    peeking.value = false
+    if (!exists) {
+      syncMode.value = 'confirmNew'  // 데이터 없음 → 오타 여부 확인받고 진행
+      return
+    }
+  } catch {
+    peeking.value = false            // 네트워크 오류면 아래 syncNow 가 에러를 표면화
+  }
   const ok = await syncStore.syncNow()
-  if (ok) syncBusy.value = false   // 성공 → 프로필 단계로 진행
-  // 실패면 syncBusy 유지 → 아래 에러/재시도 UI 노출
+  if (ok) syncBusy.value = false     // 성공 → 프로필 단계로 진행
+  // 실패면 syncBusy 유지 → 에러/재시도 UI 노출
+}
+
+// confirmNew: "이 코드로 새로 시작" — 오타가 아님을 확인했으니 vault 를 새로 만든다.
+async function confirmNewVault() {
+  const ok = await syncStore.syncNow()
+  if (ok) syncBusy.value = false
+}
+
+// confirmNew: "코드 다시 입력" — 방금 설정한 코드를 비우고 입력 화면으로 되돌린다.
+function reenterCode() {
+  syncStore.clearCode()
+  syncBusy.value = false
+  syncMode.value = 'choose'
+  syncCodeInput.value = ''
 }
 
 function generateSyncCode() {
@@ -155,9 +183,9 @@ async function copyCode() {
       <!-- 동기화 단계 — 코드 없는 기기는 여기서 입력/발급해야 진행 -->
       <div v-else-if="stage === 'sync'" class="gate-form">
         <!-- 진행 중 / 실패 -->
-        <template v-if="syncBusy && (syncing || syncFailed)">
+        <template v-if="syncBusy && (syncWorking || syncFailed)">
           <label class="gate-label">기기 간 동기화</label>
-          <div v-if="syncing" class="gate-busy">동기화 중…</div>
+          <div v-if="syncWorking" class="gate-busy">동기화 중…</div>
           <template v-else>
             <div class="gate-error">{{ syncStore.errorMsg }}</div>
             <button class="gate-btn" type="button" @click="retrySync">다시 시도</button>
@@ -165,6 +193,17 @@ async function copyCode() {
               건너뛰고 계속 (다음 접속 때 자동 동기화)
             </button>
           </template>
+        </template>
+
+        <!-- 코드로 된 데이터가 없음 — 오타 방지 확인 -->
+        <template v-else-if="syncMode === 'confirmNew'">
+          <label class="gate-label">데이터 없음</label>
+          <p class="gate-hint">
+            <b>{{ syncStore.displayCode }}</b> 코드로 저장된 데이터가 없습니다.
+            코드를 잘못 입력한 게 아니라면, 이 코드로 새로 시작합니다.
+          </p>
+          <button class="gate-btn" type="button" @click="confirmNewVault">이 코드로 새로 시작</button>
+          <button class="gate-btn-ghost" type="button" @click="reenterCode">코드 다시 입력</button>
         </template>
 
         <!-- 새 코드 발급 결과 -->

@@ -201,6 +201,13 @@ export const useSyncStore = defineStore('sync', () => {
     }
   }
 
+  // push 없이 조회만 — 코드 오타로 빈 vault 를 새로 만드는 사고를 게이트에서 막기 위함.
+  // (code.value 가 이미 설정돼 있어야 함)
+  async function peek(): Promise<{ exists: boolean }> {
+    const remote = await rpcPull()
+    return { exists: remote.data != null }
+  }
+
   function humanError(e: unknown): string {
     const msg = e instanceof Error ? e.message : String(e)
     if (/Failed to fetch|NetworkError|fetch/i.test(msg)) return '네트워크 연결을 확인하세요.'
@@ -299,6 +306,6 @@ export const useSyncStore = defineStore('sync', () => {
     code, autoSync, lastSyncedAt,
     status, errorMsg, remoteVersion,
     configured, hasCode, enabled, displayCode,
-    generateCode, setCode, clearCode, syncNow, init,
+    generateCode, setCode, clearCode, syncNow, peek, init,
   }
 })
