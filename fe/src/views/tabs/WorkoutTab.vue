@@ -46,19 +46,86 @@ const favoriteExercises = computed<ExerciseItem[]>(() => {
   return ids.map(id => byId.get(id)).filter((e): e is ExerciseItem => Boolean(e))
 })
 
-// 부위별 그룹 (검색어 적용된 결과)
-const exercisesByCategory = computed(() => {
-  const m = new Map<string, ExerciseItem[]>()
+// body_part 텍스트 기반 세부 그룹 추론. exercises.ts 변경 없이 UI 만 깔끔하게.
+const SUB_ORDER: Record<string, string[]> = {
+  '가슴': ['상부', '하부', '내측', '전체'],
+  '등':   ['광배근', '승모근', '전체'],
+  '어깨': ['전면', '측면', '후면', '승모', '전체'],
+  '팔':   ['이두', '삼두', '전완'],
+  '하체': ['대퇴사두', '햄스트링', '대둔근', '내전·외전', '종아리', '전체'],
+  '복근': ['상부', '하부', '복사근', '코어'],
+  '유산소': ['전체'],
+  '맨몸': ['전체'],
+}
+function deriveSub(e: ExerciseItem): string {
+  const bp = (e.body_part ?? '').toLowerCase()
+  switch (e.category) {
+    case '가슴':
+      if (bp.includes('상부')) return '상부'
+      if (bp.includes('하부')) return '하부'
+      if (bp.includes('내측')) return '내측'
+      return '전체'
+    case '등':
+      if (bp.includes('승모')) return '승모근'
+      if (bp.includes('광배')) return '광배근'
+      return '전체'
+    case '어깨':
+      if (bp.includes('승모')) return '승모'
+      if (bp.includes('후면')) return '후면'
+      if (bp.includes('측면')) return '측면'
+      if (bp.includes('전면') || bp.includes('전·측면')) return '전면'
+      return '전체'
+    case '팔':
+      if (bp.includes('이두') || bp.includes('상완이두')) return '이두'
+      if (bp.includes('삼두')) return '삼두'
+      if (bp.includes('전완') || bp.includes('상완요골')) return '전완'
+      return '이두'
+    case '하체':
+      if (bp.includes('종아리') || bp.includes('비복')) return '종아리'
+      if (bp.includes('내전') || bp.includes('외전') || bp.includes('중둔')) return '내전·외전'
+      if (bp.includes('햄스트링')) return '햄스트링'
+      if (bp.includes('대둔') || bp.includes('둔근')) return '대둔근'
+      if (bp.includes('대퇴사두')) return '대퇴사두'
+      return '전체'
+    case '복근':
+      if (bp.includes('하부')) return '하부'
+      if (bp.includes('사근')) return '복사근'
+      if (bp.includes('코어')) return '코어'
+      return '상부'
+    default:
+      return '전체'
+  }
+}
+
+// 부위 → 세부 → 운동 리스트 (검색어 적용)
+const exercisesByCategory = computed<[string, [string, ExerciseItem[]][]][]>(() => {
+  const m = new Map<string, Map<string, ExerciseItem[]>>()
   for (const e of filteredExercises.value) {
     const cat = (CATEGORY_ORDER as readonly string[]).includes(e.category) ? e.category : '맨몸'
-    const list = m.get(cat) ?? []
+    const sub = deriveSub(e)
+    const subMap = m.get(cat) ?? new Map<string, ExerciseItem[]>()
+    const list = subMap.get(sub) ?? []
     list.push(e)
-    m.set(cat, list)
+    subMap.set(sub, list)
+    m.set(cat, subMap)
   }
   return CATEGORY_ORDER
     .filter(c => m.has(c))
-    .map(c => [c, m.get(c)!] as [string, ExerciseItem[]])
+    .map(c => {
+      const subMap = m.get(c)!
+      const order = SUB_ORDER[c] ?? ['전체']
+      const ordered: [string, ExerciseItem[]][] = []
+      for (const s of order) if (subMap.has(s)) ordered.push([s, subMap.get(s)!])
+      // 정의되지 않은 sub key (안전망)
+      for (const [s, list] of subMap) if (!order.includes(s)) ordered.push([s, list])
+      return [c, ordered] as [string, [string, ExerciseItem[]][]]
+    })
 })
+
+// 부위별 운동 총 수 (헤더 카운트 표시용)
+function categoryCount(subs: [string, ExerciseItem[]][]): number {
+  return subs.reduce((sum, [, list]) => sum + list.length, 0)
+}
 
 // 아코디언 열림 상태 — 기본 닫힘. 검색 중이면 자동으로 모두 열림.
 const openCategories = ref<Record<string, boolean>>({})
@@ -249,39 +316,47 @@ function lastSummary(exId: string): string | null {
           </ul>
         </div>
 
-        <div v-for="[cat, list] in exercisesByCategory" :key="cat" class="routine-block accordion" :class="{ open: isCategoryOpen(cat) }">
+        <div v-for="[cat, subs] in exercisesByCategory" :key="cat" class="routine-block accordion" :class="{ open: isCategoryOpen(cat) }">
           <button class="routine-head accordion-head" type="button" @click="toggleCategory(cat)" :aria-expanded="isCategoryOpen(cat)">
             <span class="routine-name">{{ cat }}</span>
-            <span class="routine-count muted small">{{ list.length }}개</span>
+            <span class="routine-count muted small">{{ categoryCount(subs) }}개</span>
             <span class="accordion-caret" aria-hidden="true">{{ isCategoryOpen(cat) ? '▾' : '▸' }}</span>
           </button>
-          <ul v-show="isCategoryOpen(cat)" class="list">
-            <li
-              v-for="e in list"
-              :key="cat + '-' + e.id"
-              class="row-item"
-              :class="{ picked: selectedExercise?.id === e.id }"
-              @click="pickExercise(e)"
-            >
-              <button class="fav-btn" :class="{ on: catalog.isFavorite(e.id) }" @click.stop="catalog.toggleFavorite(e.id)" :title="catalog.isFavorite(e.id) ? '즐겨찾기 해제' : '즐겨찾기 추가'">
-                {{ catalog.isFavorite(e.id) ? '★' : '☆' }}
-              </button>
-              <img v-if="hasValidImage(e)" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" @error="markImageBroken(e.id)" />
-              <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">{{ e.emoji || '⚡' }}</div>
-              <div class="row-main">
-                <div class="row-name">{{ e.name }}<span v-if="e.search_en" class="row-en"> ({{ e.search_en }})</span></div>
-                <div class="row-sub">
-                  <span class="tag">{{ e.equipment }}</span>
-                  <span class="muted">{{ e.body_part }}</span>
-                  <span v-if="e.note" class="muted">· {{ e.note }}</span>
-                </div>
+          <div v-show="isCategoryOpen(cat)" class="cat-body">
+            <div v-for="[sub, list] in subs" :key="cat + '-sub-' + sub" class="sub-group">
+              <div v-if="subs.length > 1" class="sub-head">
+                <span class="sub-name">{{ sub }}</span>
+                <span class="muted small">({{ list.length }})</span>
               </div>
-              <div class="row-aux-col">
-                <span v-if="lastSummary(e.id)" class="last-pill num">전 {{ lastSummary(e.id) }}</span>
-                <span class="row-aux num">MET {{ e.met }}</span>
-              </div>
-            </li>
-          </ul>
+              <ul class="list">
+                <li
+                  v-for="e in list"
+                  :key="cat + '-' + e.id"
+                  class="row-item"
+                  :class="{ picked: selectedExercise?.id === e.id }"
+                  @click="pickExercise(e)"
+                >
+                  <button class="fav-btn" :class="{ on: catalog.isFavorite(e.id) }" @click.stop="catalog.toggleFavorite(e.id)" :title="catalog.isFavorite(e.id) ? '즐겨찾기 해제' : '즐겨찾기 추가'">
+                    {{ catalog.isFavorite(e.id) ? '★' : '☆' }}
+                  </button>
+                  <img v-if="hasValidImage(e)" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" @error="markImageBroken(e.id)" />
+                  <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">{{ e.emoji || '⚡' }}</div>
+                  <div class="row-main">
+                    <div class="row-name">{{ e.name }}<span v-if="e.search_en" class="row-en"> ({{ e.search_en }})</span></div>
+                    <div class="row-sub">
+                      <span class="tag">{{ e.equipment }}</span>
+                      <span class="muted">{{ e.body_part }}</span>
+                      <span v-if="e.note" class="muted">· {{ e.note }}</span>
+                    </div>
+                  </div>
+                  <div class="row-aux-col">
+                    <span v-if="lastSummary(e.id)" class="last-pill num">전 {{ lastSummary(e.id) }}</span>
+                    <span class="row-aux num">MET {{ e.met }}</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -775,12 +850,25 @@ function lastSummary(exId: string): string | null {
 .accordion .routine-name { font-size: var(--fs-md); }
 .accordion-caret { margin-left: auto; font-size: 13px; color: var(--c-text-muted); transition: color 0.15s; }
 .accordion.open .accordion-caret { color: var(--c-accent-ink); }
-.accordion .list {
+.accordion .cat-body {
   border: 1px solid var(--c-accent);
   border-top: none;
   border-radius: 0 0 var(--radius-md) var(--radius-md);
   padding: 4px;
 }
+.accordion .cat-body .sub-group { margin-bottom: 4px; }
+.accordion .cat-body .sub-group:last-child { margin-bottom: 0; }
+.accordion .sub-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; margin: 4px 0 2px;
+  font-size: var(--fs-xs); font-weight: 700;
+  color: var(--c-accent-ink); letter-spacing: 0.05em;
+  border-left: 3px solid var(--c-accent);
+  background: var(--c-accent-soft);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.accordion .sub-name { text-transform: uppercase; }
+.accordion .cat-body .list { padding: 0; border: none; }
 
 /* 오늘 운동 기록 부위별 아코디언 — 같은 박스 패턴(작은 사이즈) */
 .today-cats { display: flex; flex-direction: column; gap: 6px; }
