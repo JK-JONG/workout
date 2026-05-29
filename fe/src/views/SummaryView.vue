@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useLogStore, displayName, resolveSlot, type WorkoutEntry, type MealEntry } from '@/stores/log'
 import { useCatalogStore } from '@/stores/catalog'
@@ -10,34 +10,6 @@ const log = useLogStore()
 const catalog = useCatalogStore()
 const { workouts, meals, recommendedKcal, selectedDate } = storeToRefs(log)
 const { exercises } = storeToRefs(catalog)
-
-function ymd(d: Date) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-// 실제 로컬 오늘 — '오늘' 배지 표시용. 자정/포커스 복귀에도 갱신.
-const todayRef = ref(ymd(new Date()))
-function refreshToday() { todayRef.value = ymd(new Date()) }
-let interval: ReturnType<typeof setInterval> | null = null
-onMounted(() => {
-  refreshToday()
-  interval = setInterval(refreshToday, 60_000)
-  document.addEventListener('visibilitychange', refreshToday)
-})
-onBeforeUnmount(() => {
-  if (interval) clearInterval(interval)
-  document.removeEventListener('visibilitychange', refreshToday)
-})
-const isToday = computed(() => selectedDate.value === todayRef.value)
-const dateLabel = computed(() => {
-  const d = new Date(selectedDate.value + 'T00:00:00')
-  if (isNaN(d.getTime())) return selectedDate.value
-  const wd = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()]
-  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${wd})`
-})
 
 // ── 운동 ──
 const exerciseById = computed(() => {
@@ -116,17 +88,6 @@ const slotIcon: Record<Slot | '기타', string> = {
 
 <template>
   <div class="today">
-    <header class="today-head">
-      <div class="today-title">
-        <span class="today-title-icon" aria-hidden="true">📋</span>
-        <span>요약</span>
-      </div>
-      <div class="today-date">
-        {{ dateLabel }}
-        <span v-if="isToday" class="today-chip">오늘</span>
-      </div>
-    </header>
-
     <!-- 상단 요약 카드 -->
     <section class="summary">
       <div class="summary-cell">
@@ -234,34 +195,6 @@ const slotIcon: Record<Slot | '기타', string> = {
 
 <style scoped>
 .today { display: grid; gap: 14px; }
-.today-head {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; flex-wrap: wrap;
-}
-.today-title {
-  display: inline-flex; align-items: center; gap: 8px;
-  font-size: var(--fs-xl);
-  font-weight: 700;
-  letter-spacing: -0.015em;
-}
-.today-title-icon { font-size: 22px; }
-.today-date {
-  display: inline-flex; align-items: center; gap: 8px;
-  font-family: var(--font-num);
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
-  font-weight: 500;
-}
-.today-chip {
-  padding: 2px 8px;
-  font-family: var(--font-sans);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: #fff;
-  background: var(--c-accent);
-  border-radius: 999px;
-}
 
 /* 상단 요약 */
 .summary {
