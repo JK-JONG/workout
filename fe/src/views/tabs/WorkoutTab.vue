@@ -757,18 +757,56 @@ function lastSummary(exId: string): string | null {
 .fav-btn { width: 28px; height: 28px; flex: none; background: transparent; border: none; cursor: pointer; font-size: 18px; color: var(--c-text-muted); border-radius: 6px; display: grid; place-items: center; transition: color 0.15s, background 0.15s; }
 .fav-btn:hover { background: var(--c-border); }
 .fav-btn.on { color: #f4a300; }
-.accordion .accordion-head { width: 100%; display: flex; align-items: center; gap: 8px; background: transparent; border: none; cursor: pointer; padding: 8px 4px; text-align: left; font: inherit; }
-.accordion .accordion-head:hover { background: var(--c-border); border-radius: var(--radius-sm); }
-.accordion-caret { margin-left: auto; color: var(--c-text-muted); font-size: 12px; }
-.accordion:not(.open) .accordion-head { opacity: 0.85; }
+/* 운동 목록 부위별 아코디언 — 헤더가 명확한 박스로 보이도록 */
+.accordion { margin-bottom: 6px; }
+.accordion .accordion-head {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  background: var(--c-surface-alt, var(--c-border));
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer; padding: 10px 14px; text-align: left; font: inherit;
+  font-weight: 600; transition: background 0.15s, border-color 0.15s;
+}
+.accordion .accordion-head:hover { background: var(--c-border); border-color: var(--c-text-muted); }
+.accordion.open .accordion-head {
+  background: var(--c-accent-soft); color: var(--c-accent-ink);
+  border-color: var(--c-accent); border-bottom-left-radius: 0; border-bottom-right-radius: 0;
+}
+.accordion .routine-name { font-size: var(--fs-md); }
+.accordion-caret { margin-left: auto; font-size: 13px; color: var(--c-text-muted); transition: color 0.15s; }
+.accordion.open .accordion-caret { color: var(--c-accent-ink); }
+.accordion .list {
+  border: 1px solid var(--c-accent);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  padding: 4px;
+}
 
-/* 오늘 운동 기록 부위별 아코디언 */
-.today-cats { display: flex; flex-direction: column; gap: 4px; }
+/* 오늘 운동 기록 부위별 아코디언 — 같은 박스 패턴(작은 사이즈) */
+.today-cats { display: flex; flex-direction: column; gap: 6px; }
 .today-cat { border-radius: var(--radius-sm); }
-.today-cat-head { width: 100%; display: flex; align-items: center; gap: 6px; background: transparent; border: none; cursor: pointer; padding: 6px 4px; text-align: left; font: inherit; font-size: var(--fs-sm); }
-.today-cat-head:hover { background: var(--c-border); border-radius: var(--radius-sm); }
-.today-cat-name { font-weight: 600; color: var(--c-text); }
+.today-cat-head {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  background: var(--c-surface-alt, var(--c-border));
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer; padding: 7px 10px; text-align: left; font: inherit;
+  font-size: var(--fs-sm); transition: background 0.15s, border-color 0.15s;
+}
+.today-cat-head:hover { background: var(--c-border); border-color: var(--c-text-muted); }
+.today-cat.open .today-cat-head {
+  background: var(--c-accent-soft); color: var(--c-accent-ink);
+  border-color: var(--c-accent); border-bottom-left-radius: 0; border-bottom-right-radius: 0;
+}
+.today-cat-name { font-weight: 700; }
 .today-cat-caret { margin-left: auto; color: var(--c-text-muted); font-size: 11px; }
+.today-cat.open .today-cat-caret { color: var(--c-accent-ink); }
+.today-cat .today-list {
+  border: 1px solid var(--c-accent);
+  border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  padding: 2px 6px;
+}
 .icon-btn { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: var(--c-text-muted); border-radius: 50%; transition: background 0.15s, color 0.15s; }
 .icon-btn:hover { background: var(--c-border); color: var(--c-text); }
 .icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
