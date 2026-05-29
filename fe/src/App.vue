@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import AppGate from '@/components/AppGate.vue'
 import AppNav from '@/components/AppNav.vue'
+import BodyReminderBanner from '@/components/BodyReminderBanner.vue'
 import { useSyncStore } from '@/stores/sync'
 
 // 동기화: 코드가 있으면 앱 진입 시 한 번 pull→병합→push, 이후 변경분 자동 push.
@@ -14,6 +15,7 @@ onMounted(() => useSyncStore().init())
   <AppGate>
     <AppNav />
     <main class="page">
+      <BodyReminderBanner />
       <RouterView />
     </main>
   </AppGate>
