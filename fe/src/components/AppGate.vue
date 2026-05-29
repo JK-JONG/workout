@@ -52,7 +52,19 @@ watch(activeProfile, () => {
 // activeProfile 이 있으면 미리 채워줘서 비번만 입력하면 되도록 한다.
 const nameInput = ref(activeProfile.value || '')
 const pwInput = ref('')
+const pwConfirmInput = ref('')
 const nameError = ref('')
+
+// 입력 중인 닉네임이 hash 가 등록된 기존 프로필인지 여부.
+//  · false (= 새 닉네임 또는 grandfathered): "비번 + 비번 확인" 으로 가입
+//  · true  (= hash 등록된 기존 닉네임):       "비번" 하나로 로그인 검증
+const isRegisteredProfile = computed(() => {
+  const n = nameInput.value.trim()
+  if (!n || !knownProfiles.value.includes(n)) return false
+  return !!profile.getStoredHash(n)
+})
+const isCreatingProfile = computed(() => nameInput.value.trim().length > 0 && !isRegisteredProfile.value)
+
 async function submitName() {
   nameError.value = ''
   const n = nameInput.value.trim()
@@ -60,6 +72,10 @@ async function submitName() {
   if (!n) { nameError.value = '닉네임을 입력해주세요.'; return }
   if (!profile.isValidName(n)) { nameError.value = '닉네임에 사용할 수 없는 문자가 포함되어 있습니다.'; return }
   if (!profile.isValidPassword(pw)) { nameError.value = '비밀번호는 4자 이상이에요.'; return }
+  // 가입 모드: 비번 확인까지 일치해야 함.
+  if (isCreatingProfile.value && pw !== pwConfirmInput.value) {
+    nameError.value = '비밀번호가 일치하지 않아요.'; return
+  }
   const isNew = !knownProfiles.value.includes(n)
   // 비번 검증: vault 에 hash 가 있으면 일치해야 진행, 없으면 첫 설정으로 저장.
   const res = await profile.verifyOrSetPassword(n, pw)
@@ -70,6 +86,7 @@ async function submitName() {
   sessionStorage.setItem(SESSION_KEY, n)
   sessionAuthedFor.value = n
   pwInput.value = ''
+  pwConfirmInput.value = ''
   // 다음 sync 때 passwordHash 가 vault 에 함께 push 됨(첫 설정의 경우).
   syncStore.syncNow().catch(() => { /* 실패해도 게이트는 통과 */ })
 }
@@ -172,13 +189,26 @@ async function retrySync() {
             class="gate-input"
             type="password"
             v-model="pwInput"
-            autocomplete="current-password"
+            :autocomplete="isCreatingProfile ? 'new-password' : 'current-password'"
             placeholder="비밀번호 (4자 이상)"
             maxlength="64"
           />
-          <button class="gate-btn" type="submit">들어가기</button>
+          <input
+            v-if="isCreatingProfile"
+            class="gate-input"
+            type="password"
+            v-model="pwConfirmInput"
+            autocomplete="new-password"
+            placeholder="비밀번호 확인"
+            maxlength="64"
+          />
+          <button class="gate-btn" type="submit">
+            {{ isCreatingProfile ? '닉네임 생성' : (isRegisteredProfile ? '로그인' : '들어가기') }}
+          </button>
         </form>
-        <p class="gate-hint">처음 들어오는 닉네임이라면 입력한 비밀번호가 그대로 저장돼요. 이미 쓰던 닉네임이라면 일치해야 들어올 수 있어요.</p>
+        <p v-if="isCreatingProfile" class="gate-hint">처음 들어오는 닉네임 — 비밀번호를 한 번 더 입력해 확정합니다.</p>
+        <p v-else-if="isRegisteredProfile" class="gate-hint">등록된 닉네임 — 비밀번호가 일치해야 들어올 수 있어요.</p>
+        <p v-else class="gate-hint">닉네임을 입력해주세요.</p>
         <div v-if="nameError" class="gate-error">{{ nameError }}</div>
       </div>
 
