@@ -8,7 +8,7 @@ import type { Slot } from '@/data/mealPresets'
 
 const log = useLogStore()
 const catalog = useCatalogStore()
-const { workouts, meals, recommendedKcal } = storeToRefs(log)
+const { workouts, meals, recommendedKcal, selectedDate } = storeToRefs(log)
 const { exercises } = storeToRefs(catalog)
 
 function ymd(d: Date) {
@@ -18,13 +18,12 @@ function ymd(d: Date) {
   return `${y}-${m}-${day}`
 }
 
-// '오늘' 은 자정/포커스 복귀에도 갱신되도록 reactive 로 관리.
+// 실제 로컬 오늘 — '오늘' 배지 표시용. 자정/포커스 복귀에도 갱신.
 const todayRef = ref(ymd(new Date()))
 function refreshToday() { todayRef.value = ymd(new Date()) }
 let interval: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
   refreshToday()
-  // 1분마다 + 탭이 보이게 될 때마다 갱신.
   interval = setInterval(refreshToday, 60_000)
   document.addEventListener('visibilitychange', refreshToday)
 })
@@ -32,9 +31,10 @@ onBeforeUnmount(() => {
   if (interval) clearInterval(interval)
   document.removeEventListener('visibilitychange', refreshToday)
 })
-const today = computed(() => todayRef.value)
+const isToday = computed(() => selectedDate.value === todayRef.value)
 const dateLabel = computed(() => {
-  const d = new Date(today.value + 'T00:00:00')
+  const d = new Date(selectedDate.value + 'T00:00:00')
+  if (isNaN(d.getTime())) return selectedDate.value
   const wd = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()]
   return `${d.getMonth() + 1}월 ${d.getDate()}일 (${wd})`
 })
@@ -48,7 +48,7 @@ const exerciseById = computed(() => {
 
 const todayWorkouts = computed<WorkoutEntry[]>(() =>
   workouts.value
-    .filter(w => w.date === today.value)
+    .filter(w => w.date === selectedDate.value)
     .sort((a, b) => a.createdAt - b.createdAt)
 )
 
@@ -79,7 +79,7 @@ const SLOTS: Slot[] = ['아침', '점심', '저녁', '간식']
 
 const todayMeals = computed<MealEntry[]>(() =>
   meals.value
-    .filter(m => m.date === today.value)
+    .filter(m => m.date === selectedDate.value)
     .sort((a, b) => a.createdAt - b.createdAt)
 )
 const kcalIn = computed(() => todayMeals.value.reduce((s, m) => s + m.kcal, 0))
@@ -118,10 +118,13 @@ const slotIcon: Record<Slot | '기타', string> = {
   <div class="today">
     <header class="today-head">
       <div class="today-title">
-        <span class="today-title-icon" aria-hidden="true">👀</span>
-        <span>오늘 한눈에</span>
+        <span class="today-title-icon" aria-hidden="true">📋</span>
+        <span>요약</span>
       </div>
-      <div class="today-date">{{ dateLabel }}</div>
+      <div class="today-date">
+        {{ dateLabel }}
+        <span v-if="isToday" class="today-chip">오늘</span>
+      </div>
     </header>
 
     <!-- 상단 요약 카드 -->
@@ -243,10 +246,21 @@ const slotIcon: Record<Slot | '기타', string> = {
 }
 .today-title-icon { font-size: 22px; }
 .today-date {
+  display: inline-flex; align-items: center; gap: 8px;
   font-family: var(--font-num);
   color: var(--c-text-muted);
   font-size: var(--fs-sm);
   font-weight: 500;
+}
+.today-chip {
+  padding: 2px 8px;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--c-accent);
+  border-radius: 999px;
 }
 
 /* 상단 요약 */
