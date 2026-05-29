@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useLogStore, displayName, resolveSlot, type WorkoutEntry, type MealEntry } from '@/stores/log'
 import { useCatalogStore } from '@/stores/catalog'
@@ -17,9 +17,24 @@ function ymd(d: Date) {
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
 }
-const today = ymd(new Date())
+
+// '오늘' 은 자정/포커스 복귀에도 갱신되도록 reactive 로 관리.
+const todayRef = ref(ymd(new Date()))
+function refreshToday() { todayRef.value = ymd(new Date()) }
+let interval: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  refreshToday()
+  // 1분마다 + 탭이 보이게 될 때마다 갱신.
+  interval = setInterval(refreshToday, 60_000)
+  document.addEventListener('visibilitychange', refreshToday)
+})
+onBeforeUnmount(() => {
+  if (interval) clearInterval(interval)
+  document.removeEventListener('visibilitychange', refreshToday)
+})
+const today = computed(() => todayRef.value)
 const dateLabel = computed(() => {
-  const d = new Date(today + 'T00:00:00')
+  const d = new Date(today.value + 'T00:00:00')
   const wd = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()]
   return `${d.getMonth() + 1}월 ${d.getDate()}일 (${wd})`
 })
@@ -33,7 +48,7 @@ const exerciseById = computed(() => {
 
 const todayWorkouts = computed<WorkoutEntry[]>(() =>
   workouts.value
-    .filter(w => w.date === today)
+    .filter(w => w.date === today.value)
     .sort((a, b) => a.createdAt - b.createdAt)
 )
 
@@ -64,7 +79,7 @@ const SLOTS: Slot[] = ['아침', '점심', '저녁', '간식']
 
 const todayMeals = computed<MealEntry[]>(() =>
   meals.value
-    .filter(m => m.date === today)
+    .filter(m => m.date === today.value)
     .sort((a, b) => a.createdAt - b.createdAt)
 )
 const kcalIn = computed(() => todayMeals.value.reduce((s, m) => s + m.kcal, 0))

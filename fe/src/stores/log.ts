@@ -68,7 +68,13 @@ export interface BodyEntry {
 export type Sex = 'male' | 'female'
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10)
+  // toISOString 은 UTC 변환이라 KST 자정 → 전날 15시로 어긋남.
+  // 로컬 기준 YYYY-MM-DD 직접 생성.
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 export const useLogStore = defineStore('log', () => {

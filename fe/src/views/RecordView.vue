@@ -36,6 +36,12 @@ function todayStr() { return ymd(new Date()) }
 
 function maybeShowOrCarry() {
   if (!activeProfile.value) return
+  // 어제 selectedDate 가 그대로 박혀 있으면 새 기록이 어제 날짜로 들어가버려서
+  // '오늘' 탭에 안 잡힌다. 진입 시 과거면 오늘로 끌어올린다(미래는 유지).
+  const today = todayStr()
+  if (selectedDate.value < today) {
+    selectedDate.value = today
+  }
   if (body.value.length === 0) {
     if (skippedBodyModal.value !== activeProfile.value) {
       showBodyModal.value = true
@@ -43,7 +49,6 @@ function maybeShowOrCarry() {
     return
   }
   // 신체 기록이 있을 때 → 오늘 날짜로 캐리오버 (하루에 한 번만)
-  const today = todayStr()
   const carryKey = `${activeProfile.value}::${today}`
   if (lastCarryAt.value !== carryKey) {
     log.carryoverBodyTo(today)
