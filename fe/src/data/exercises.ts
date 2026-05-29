@@ -36,7 +36,8 @@ export const EXERCISES: ExerciseItem[] = [
   { id: 'crunch-25x3',         name: '크런치',                   category: '복근', equipment: '맨몸',   met: 3.8, unit: 'reps', duration_per_set: 0.5, routine: '등&삼두', order_no: 7, body_part: '복직근', note: '25회 3세트', search_en: 'crunch', image_url: IMG + '0274-TFqbd8t.gif' },
 
   // ── 하체 & 이두 ──
-  { id: 'inner-thigh',         name: '이너타이',                 category: '하체', equipment: '머신',   met: 4.5, unit: 'reps', duration_per_set: 0.6, routine: '하체&이두', order_no: 1, body_part: '내전근',                search_en: 'hip adduction', image_url: IMG + '0598-oHsrypV.gif' },
+  { id: 'inner-thigh',         name: '이너타이 (힙 어덕션)',     category: '하체', equipment: '머신',   met: 4.5, unit: 'reps', duration_per_set: 0.6, routine: '하체&이두', order_no: 1, body_part: '내전근',                search_en: 'hip adduction', image_url: IMG + '0598-oHsrypV.gif' },
+  { id: 'hip-abduction',       name: '힙 어브덕션',              category: '하체', equipment: '머신',   met: 4.5, unit: 'reps', duration_per_set: 0.6, body_part: '중둔근, 외전근',                                          search_en: 'hip abduction', image_url: IMG + '0710-7WaDzyL.gif' },
   { id: 'leg-extension',       name: '레그 익스텐션',            category: '하체', equipment: '머신',   met: 5.0, unit: 'reps', duration_per_set: 0.7, routine: '하체&이두', order_no: 2, body_part: '대퇴사두근',            search_en: 'leg extension', image_url: IMG + '0585-my33uHU.gif' },
   { id: 'db-lunge-smith-squat', name: '덤벨 런지 or 스미스머신 스쿼트', category: '하체', equipment: '덤벨', met: 6.0, unit: 'reps', duration_per_set: 0.8, routine: '하체&이두', order_no: 3, body_part: '대퇴사두, 대둔근', search_en: 'dumbbell lunge / smith squat', image_url: IMG + '0336-RRWFUcw.gif' },
   { id: 'power-leg-press',     name: '파워 레그 프레스',         category: '하체', equipment: '머신',   met: 6.0, unit: 'reps', duration_per_set: 0.8, routine: '하체&이두', order_no: 4, body_part: '대퇴사두근',            search_en: 'leg press', image_url: IMG + '1463-2Qh2J1e.gif' },
@@ -101,4 +102,42 @@ export const EXERCISES: ExerciseItem[] = [
   // AB 슬라이드: 데이터셋에 정확한 wheel rollout GIF가 없어 emoji fallback 유지.
   { id: 'bw-lunge',            name: '런지 (맨몸)',              category: '하체', equipment: '맨몸',   met: 5.5, unit: 'reps', duration_per_set: 0.6, body_part: '대퇴사두근, 대둔근',           search_en: 'bodyweight lunge',  emoji: '🦵', image_url: IMG + '0336-RRWFUcw.gif' },
   { id: 'ab-slide',            name: 'AB 슬라이드',              category: '복근', equipment: '맨몸',   met: 5.0, unit: 'reps', duration_per_set: 0.6, body_part: '복직근, 코어',                 search_en: 'ab wheel rollout',  emoji: '🔄' },
+
+  // ── 추가 운동 (부위별 보강) — image_url 미상은 emoji fallback ──
+  // 가슴
+  { id: 'decline-bench',       name: '디클라인 벤치프레스',      category: '가슴', equipment: '바벨',   met: 6.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근 하부, 삼두근',  search_en: 'decline bench press', image_url: IMG + '0753-ETZfAbZ.gif' },
+  { id: 'cable-crossover',     name: '케이블 크로스오버',        category: '가슴', equipment: '케이블', met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근 내측',          search_en: 'cable crossover', emoji: '💪' },
+  { id: 'incline-db-fly',      name: '인클라인 덤벨 플라이',     category: '가슴', equipment: '덤벨',   met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근 상부',          search_en: 'incline dumbbell fly', image_url: IMG + '0171-tBWXbIT.gif' },
+  { id: 'pec-deck',            name: '펙 덱 플라이',             category: '가슴', equipment: '머신',   met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근',               search_en: 'pec deck fly', emoji: '💪' },
+  // 등
+  { id: 'pendlay-row',         name: '펜들레이 로우',            category: '등',   equipment: '바벨',   met: 6.0, unit: 'reps', duration_per_set: 0.7, body_part: '광배근, 승모근',       search_en: 'pendlay row', image_url: IMG + '3017-r0z6xzQ.gif' },
+  { id: 'pullover',            name: '덤벨 풀오버',              category: '등',   equipment: '덤벨',   met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '광배근, 대흉근',       search_en: 'dumbbell pullover', image_url: IMG + '0375-9XjtHvS.gif' },
+  { id: 'machine-row',         name: '머신 로우',                category: '등',   equipment: '머신',   met: 5.5, unit: 'reps', duration_per_set: 0.7, body_part: '광배근, 승모근',       search_en: 'lever seated row', image_url: IMG + '1350-7I6LNUG.gif' },
+  { id: 'inverted-row',        name: '인버티드 로우',            category: '등',   equipment: '맨몸',   met: 6.0, unit: 'reps', duration_per_set: 0.7, body_part: '광배근, 후면 삼각근',  search_en: 'inverted row', image_url: IMG + '0499-bZGHsAZ.gif' },
+  // 어깨
+  { id: 'arnold-press',        name: '아놀드 프레스',            category: '어깨', equipment: '덤벨',   met: 5.5, unit: 'reps', duration_per_set: 0.7, body_part: '전·측면 삼각근',       search_en: 'arnold press', image_url: IMG + '2137-Xy4jlWA.gif' },
+  { id: 'cable-lateral-raise', name: '케이블 사이드 레터럴 레이즈', category: '어깨', equipment: '케이블', met: 4.5, unit: 'reps', duration_per_set: 0.7, body_part: '측면 삼각근',       search_en: 'cable lateral raise', image_url: IMG + '0178-goJ6ezq.gif' },
+  { id: 'machine-shoulder-press', name: '머신 숄더 프레스',      category: '어깨', equipment: '머신',   met: 5.5, unit: 'reps', duration_per_set: 0.7, body_part: '전·측면 삼각근, 삼두근', search_en: 'machine shoulder press', image_url: IMG + '0603-67n3r98.gif' },
+  { id: 'cable-front-raise',   name: '케이블 프론트 레이즈',     category: '어깨', equipment: '케이블', met: 4.5, unit: 'reps', duration_per_set: 0.7, body_part: '전면 삼각근',          search_en: 'cable front raise', image_url: IMG + '0162-u2X71Np.gif' },
+  // 팔
+  { id: 'concentration-curl',  name: '컨센트레이션 컬',          category: '팔',   equipment: '덤벨',   met: 4.0, unit: 'reps', duration_per_set: 0.7, body_part: '상완이두근',           search_en: 'concentration curl', image_url: IMG + '0976-kmVVAfu.gif' },
+  { id: 'spider-curl',         name: '스파이더 컬',              category: '팔',   equipment: '덤벨',   met: 4.0, unit: 'reps', duration_per_set: 0.7, body_part: '상완이두근',           search_en: 'spider curl', image_url: IMG + '0454-Ye5Qxb0.gif' },
+  { id: 'cable-kickback',      name: '케이블 트라이셉스 킥백',   category: '팔',   equipment: '케이블', met: 4.0, unit: 'reps', duration_per_set: 0.7, body_part: '삼두근',               search_en: 'cable triceps kickback', image_url: IMG + '0860-HEJ6DIX.gif' },
+  { id: 'overhead-tricep-ext', name: '오버헤드 트라이셉 익스텐션', category: '팔', equipment: '덤벨',   met: 4.5, unit: 'reps', duration_per_set: 0.7, body_part: '삼두근',               search_en: 'dumbbell overhead triceps extension', image_url: IMG + '0092-5uFK1xr.gif' },
+  { id: 'skull-crusher',       name: '스컬 크러셔',              category: '팔',   equipment: '바벨',   met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '삼두근',               search_en: 'skull crusher', image_url: IMG + '0060-h8LFzo9.gif' },
+  // 하체
+  { id: 'bulgarian-split-squat', name: '불가리안 스플릿 스쿼트', category: '하체', equipment: '덤벨',   met: 6.0, unit: 'reps', duration_per_set: 0.7, body_part: '대퇴사두, 대둔근',     search_en: 'bulgarian split squat', image_url: IMG + '2368-9E25EOx.gif' },
+  { id: 'good-morning',        name: '굿모닝',                   category: '하체', equipment: '바벨',   met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '햄스트링, 척추기립근', search_en: 'good morning', image_url: IMG + '0044-XlZ4lAC.gif' },
+  { id: 'glute-bridge',        name: '글루트 브릿지',            category: '하체', equipment: '맨몸',   met: 4.5, unit: 'reps', duration_per_set: 0.6, body_part: '대둔근, 햄스트링',     search_en: 'glute bridge', image_url: IMG + '3561-GibBPPg.gif' },
+  { id: 'machine-glute-kick',  name: '머신 글루트 킥백',         category: '하체', equipment: '머신',   met: 4.5, unit: 'reps', duration_per_set: 0.6, body_part: '대둔근',               search_en: 'glute kickback', emoji: '🍑' },
+  { id: 'step-up',             name: '스텝업',                   category: '하체', equipment: '덤벨',   met: 5.5, unit: 'reps', duration_per_set: 0.7, body_part: '대퇴사두, 대둔근',     search_en: 'step-up', image_url: IMG + '1008-d5bTEPV.gif' },
+  { id: 'box-jump',            name: '박스 점프',                category: '하체', equipment: '맨몸',   met: 8.0, unit: 'reps', duration_per_set: 0.5, body_part: '대퇴사두, 대둔근, 종아리', search_en: 'box jump', image_url: IMG + '1374-iPm26QU.gif' },
+  // 복근
+  { id: 'decline-crunch',      name: '디클라인 크런치',          category: '복근', equipment: '맨몸',   met: 4.5, unit: 'reps', duration_per_set: 0.6, body_part: '복직근',               search_en: 'decline crunch', image_url: IMG + '0277-9Ap7miY.gif' },
+  { id: 'cable-crunch',        name: '케이블 크런치',            category: '복근', equipment: '케이블', met: 4.5, unit: 'reps', duration_per_set: 0.6, body_part: '복직근',               search_en: 'cable crunch', image_url: IMG + '0175-WW95auq.gif' },
+  { id: 'v-up',                name: 'V-업',                     category: '복근', equipment: '맨몸',   met: 5.0, unit: 'reps', duration_per_set: 0.5, body_part: '복직근',               search_en: 'v-up', image_url: IMG + '1014-H6ETwO9.gif' },
+  { id: 'toe-touch',           name: '토 터치',                  category: '복근', equipment: '맨몸',   met: 4.0, unit: 'reps', duration_per_set: 0.5, body_part: '복직근',               search_en: 'toe touch', image_url: IMG + '1468-xgsGFVM.gif' },
+  // 유산소
+  { id: 'rowing',              name: '로잉 머신',                category: '유산소', equipment: '유산소기구', met: 7.0, unit: 'time', body_part: '전신', search_en: 'rowing machine', emoji: '🚣' },
+  { id: 'jump-rope',           name: '줄넘기',                   category: '유산소', equipment: '맨몸', met: 11.0, unit: 'time', body_part: '심폐, 종아리', search_en: 'jump rope', image_url: IMG + '2612-e1e76I2.gif' },
 ]
