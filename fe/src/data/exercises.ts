@@ -108,7 +108,7 @@ export const EXERCISES: ExerciseItem[] = [
   { id: 'decline-bench',       name: '디클라인 벤치프레스',      category: '가슴', equipment: '바벨',   met: 6.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근 하부, 삼두근',  search_en: 'decline bench press', image_url: IMG + '0753-ETZfAbZ.gif' },
   { id: 'cable-crossover',     name: '케이블 크로스오버',        category: '가슴', equipment: '케이블', met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근 내측',          search_en: 'cable upper chest crossovers', image_url: IMG + '1270-j7XMAyn.gif' },
   { id: 'incline-db-fly',      name: '인클라인 덤벨 플라이',     category: '가슴', equipment: '덤벨',   met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근 상부',          search_en: 'incline dumbbell fly', image_url: IMG + '0171-tBWXbIT.gif' },
-  { id: 'pec-deck',            name: '펙 덱 플라이 (케이블 미들)', category: '가슴', equipment: '머신',   met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근',               search_en: 'cable middle fly', image_url: IMG + '0188-xLYSdtg.gif' },
+  { id: 'pec-deck',            name: '펙 덱 플라이 (머신)',      category: '가슴', equipment: '머신',   met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근',               search_en: 'lever seated fly', image_url: IMG + '0596-v3xmPAR.gif' },
   // 등
   { id: 'pendlay-row',         name: '펜들레이 로우',            category: '등',   equipment: '바벨',   met: 6.0, unit: 'reps', duration_per_set: 0.7, body_part: '광배근, 승모근',       search_en: 'pendlay row', image_url: IMG + '3017-r0z6xzQ.gif' },
   { id: 'pullover',            name: '덤벨 풀오버',              category: '등',   equipment: '덤벨',   met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '광배근, 대흉근',       search_en: 'dumbbell pullover', image_url: IMG + '0375-9XjtHvS.gif' },
