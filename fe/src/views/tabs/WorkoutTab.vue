@@ -5,6 +5,9 @@ import { useLogStore, type SetLog } from '@/stores/log'
 import { useCatalogStore } from '@/stores/catalog'
 import { type ExerciseItem, type Routine } from '@/data/exercises'
 import { kcalByDuration, kcalByDistance, kcalByReps } from '@/composables/useCalorie'
+import ExerciseAddModal from '@/components/ExerciseAddModal.vue'
+
+const exerciseAddOpen = ref(false)
 
 const log = useLogStore()
 const catalog = useCatalogStore()
@@ -190,6 +193,9 @@ function lastSummary(exId: string): string | null {
           v-model="exerciseQuery"
           placeholder="이름·부위·기구 검색…"
         />
+        <button class="add-ex-btn" type="button" @click="exerciseAddOpen = true" title="운동 추가">
+          + 추가
+        </button>
       </div>
     </div>
 
@@ -425,6 +431,7 @@ function lastSummary(exId: string): string | null {
     </div>
   </section>
 
+  <ExerciseAddModal :open="exerciseAddOpen" @close="exerciseAddOpen = false" />
 </template>
 
 <style scoped>
@@ -761,6 +768,9 @@ function lastSummary(exId: string): string | null {
 .btn-primary:hover { background: var(--c-accent-ink); }
 .btn-mini { height: 22px; padding: 0 8px; font-size: var(--fs-xs); background: var(--c-surface); color: var(--c-accent-ink); border: 1px solid var(--c-accent-soft); border-radius: 999px; transition: background 0.15s; }
 .btn-mini:hover { background: var(--c-accent-soft); }
+.add-ex-btn { height: 30px; padding: 0 12px; border: 1px solid var(--c-accent-soft); background: var(--c-surface); color: var(--c-accent-ink); border-radius: var(--radius-md); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+.add-ex-btn:hover { background: var(--c-accent-soft); }
+.card-head-tools { display: flex; align-items: center; gap: 8px; }
 .icon-btn { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: var(--c-text-muted); border-radius: 50%; transition: background 0.15s, color 0.15s; }
 .icon-btn:hover { background: var(--c-border); color: var(--c-text); }
 .icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }

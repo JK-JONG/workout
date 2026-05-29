@@ -66,6 +66,18 @@ export const FOODS: FoodItem[] = [
   { id: 'black-soy-milk',   name: '무당 검은콩 두유 190ml',    kcal: 80,  protein: 6,  carbs: 5,  fat: 4,  category: '음료' },
   { id: 'energy-bar',       name: '에너지바 1개',              kcal: 180, protein: 5,  carbs: 25, fat: 7,  category: '간식' },
 
+  // 편의점 프로틴 음료 (1팩 기준, 라벨 평균값)
+  { id: 'maeil-myprotein-drink',  name: '매일 마이프로틴 드링크 250ml',   kcal: 140, protein: 25, carbs: 8,  fat: 1,   category: '음료' },
+  { id: 'maeil-protein-cocoa',    name: '매일 셀렉스 프로틴 코코아 250ml', kcal: 150, protein: 20, carbs: 13, fat: 2,   category: '음료' },
+  { id: 'namyang-protein-drink',  name: '남양 단백질의 정석 250ml',        kcal: 130, protein: 22, carbs: 8,  fat: 1.5, category: '음료' },
+  { id: 'binggrae-protein-banana',name: '빙그레 더단백 바나나 250ml',     kcal: 150, protein: 23, carbs: 10, fat: 2,   category: '음료' },
+  { id: 'binggrae-protein-choco', name: '빙그레 더단백 초코 250ml',       kcal: 150, protein: 23, carbs: 10, fat: 2,   category: '음료' },
+  { id: 'lotte-protein-cocoa',    name: '롯데칠성 프로틴파워 코코아 240ml', kcal: 130, protein: 20, carbs: 9, fat: 1.5, category: '음료' },
+  { id: 'denmark-high-protein',   name: '덴마크 하이프로틴 250ml',         kcal: 130, protein: 22, carbs: 6,  fat: 2,   category: '음료' },
+  { id: 'seoul-milk-protein',     name: '서울우유 프로틴 250ml',           kcal: 120, protein: 18, carbs: 10, fat: 1.5, category: '음료' },
+  { id: 'cu-pb-protein',          name: 'CU 헤이루 프로틴 음료 250ml',     kcal: 135, protein: 20, carbs: 9,  fat: 2,   category: '음료' },
+  { id: 'gs25-pb-protein',        name: 'GS25 유어스 프로틴 음료 250ml',   kcal: 135, protein: 20, carbs: 9,  fat: 2,   category: '음료' },
+
   // 반찬
   { id: 'gim',              name: '김 1봉 (2g)',               kcal: 10,  protein: 1,  carbs: 1,  fat: 0,  category: '반찬' },
   { id: 'kimchi-50',        name: '김치 50g',                  kcal: 15,  protein: 1,  carbs: 3,  fat: 0,  category: '반찬' },

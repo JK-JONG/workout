@@ -5,11 +5,12 @@ import { FOODS, type FoodItem } from '@/data/foods'
 import { MEAL_PRESETS, type MealPreset } from '@/data/mealPresets'
 import { useProfileStorage } from '@/composables/useProfileStorage'
 
-// 정적 데이터 기반 카탈로그. 커스텀 음식은 프로필별 localStorage에 누적.
+// 정적 데이터 기반 카탈로그. 커스텀 음식·운동은 프로필별 localStorage에 누적.
 export const useCatalogStore = defineStore('catalog', () => {
   const customFoods = useProfileStorage<FoodItem[]>('customFoods', [])
+  const customExercises = useProfileStorage<ExerciseItem[]>('customExercises', [])
 
-  const exercises = computed<ExerciseItem[]>(() => EXERCISES)
+  const exercises = computed<ExerciseItem[]>(() => [...EXERCISES, ...customExercises.value])
   const foods = computed<FoodItem[]>(() => [...FOODS, ...customFoods.value])
   const mealPresets = computed<MealPreset[]>(() => MEAL_PRESETS)
 
@@ -43,9 +44,20 @@ export const useCatalogStore = defineStore('catalog', () => {
     customFoods.value = customFoods.value.filter(f => f.id !== id)
   }
 
+  function addCustomExercise(payload: Omit<ExerciseItem, 'id'>): ExerciseItem {
+    const created: ExerciseItem = { ...payload, id: `custom-ex-${crypto.randomUUID()}` }
+    customExercises.value = [...customExercises.value, created]
+    return created
+  }
+
+  function removeCustomExercise(id: string) {
+    customExercises.value = customExercises.value.filter(e => e.id !== id)
+  }
+
   return {
-    exercises, foods, mealPresets, customFoods,
+    exercises, foods, mealPresets, customFoods, customExercises,
     routines, foodById,
     addCustomFood, removeCustomFood,
+    addCustomExercise, removeCustomExercise,
   }
 })

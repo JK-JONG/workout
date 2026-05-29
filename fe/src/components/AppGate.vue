@@ -49,21 +49,19 @@ watch(activeProfile, () => {
   dismissedMeta.value = false
 })
 
-// activeProfile 이 있으면 미리 채워줘서 비번만 입력하면 되도록 한다.
+// 명시적 모드: 'login' (기본) | 'signup'. 사용자가 직접 전환.
+const authMode = ref<'login' | 'signup'>('login')
 const nameInput = ref(activeProfile.value || '')
 const pwInput = ref('')
 const pwConfirmInput = ref('')
 const nameError = ref('')
 
-// 입력 중인 닉네임이 hash 가 등록된 기존 프로필인지 여부.
-//  · false (= 새 닉네임 또는 grandfathered): "비번 + 비번 확인" 으로 가입
-//  · true  (= hash 등록된 기존 닉네임):       "비번" 하나로 로그인 검증
-const isRegisteredProfile = computed(() => {
-  const n = nameInput.value.trim()
-  if (!n || !knownProfiles.value.includes(n)) return false
-  return !!profile.getStoredHash(n)
-})
-const isCreatingProfile = computed(() => nameInput.value.trim().length > 0 && !isRegisteredProfile.value)
+function toggleAuthMode() {
+  authMode.value = authMode.value === 'login' ? 'signup' : 'login'
+  nameError.value = ''
+  pwInput.value = ''
+  pwConfirmInput.value = ''
+}
 
 async function submitName() {
   nameError.value = ''
@@ -72,22 +70,36 @@ async function submitName() {
   if (!n) { nameError.value = '닉네임을 입력해주세요.'; return }
   if (!profile.isValidName(n)) { nameError.value = '닉네임에 사용할 수 없는 문자가 포함되어 있습니다.'; return }
   if (!profile.isValidPassword(pw)) { nameError.value = '비밀번호는 4자 이상이에요.'; return }
-  // 가입 모드: 비번 확인까지 일치해야 함.
-  if (isCreatingProfile.value && pw !== pwConfirmInput.value) {
-    nameError.value = '비밀번호가 일치하지 않아요.'; return
+
+  if (authMode.value === 'signup') {
+    // 중복 검증 — 같은 닉네임이 이미 hash 등록된 경우 거부.
+    if (knownProfiles.value.includes(n) && profile.getStoredHash(n)) {
+      nameError.value = '이미 사용 중인 닉네임이에요. "로그인" 으로 들어가세요.'; return
+    }
+    if (pw !== pwConfirmInput.value) {
+      nameError.value = '비밀번호가 일치하지 않아요.'; return
+    }
+  } else {
+    // 로그인 — 등록된 닉네임 + hash 일치 필수.
+    if (!knownProfiles.value.includes(n)) {
+      nameError.value = '등록되지 않은 닉네임이에요. "신규 추가" 로 가입해주세요.'; return
+    }
+    if (!profile.getStoredHash(n)) {
+      nameError.value = '비밀번호가 등록되지 않은 닉네임이에요. "신규 추가" 로 등록해주세요.'; return
+    }
   }
-  const isNew = !knownProfiles.value.includes(n)
-  // 비번 검증: vault 에 hash 가 있으면 일치해야 진행, 없으면 첫 설정으로 저장.
+
+  // 두 모드 모두 verifyOrSetPassword 가 알아서 처리 (signup → firstSet, login → 비교)
   const res = await profile.verifyOrSetPassword(n, pw)
   if (!res.ok) { nameError.value = '비밀번호가 맞지 않아요.'; return }
+
+  const isNew = !knownProfiles.value.includes(n)
   needsBodyForNewProfile.value = isNew
   profile.setProfile(n)
-  // 세션 인증 마커 — 탭/창을 닫으면 사라져서 다음에 다시 비번 받음.
   sessionStorage.setItem(SESSION_KEY, n)
   sessionAuthedFor.value = n
   pwInput.value = ''
   pwConfirmInput.value = ''
-  // 다음 sync 때 passwordHash 가 vault 에 함께 push 됨(첫 설정의 경우).
   syncStore.syncNow().catch(() => { /* 실패해도 게이트는 통과 */ })
 }
 // ── 동기화 단계 ──────────────────────────────────────────
@@ -165,14 +177,14 @@ async function retrySync() {
         </template>
       </div>
 
-      <!-- 프로필 단계 — 닉네임 직접 입력. 클릭만으로는 다른 프로필에 못 들어가게. -->
+      <!-- 프로필 단계 — 로그인 / 신규 추가 명시적 분기 -->
       <div v-else-if="stage === 'profile'" class="gate-form">
-        <label class="gate-label">닉네임</label>
+        <label class="gate-label">{{ authMode === 'login' ? '로그인' : '신규 추가' }}</label>
         <p class="gate-hint">
-          기존 닉네임을 정확히 입력하면 그 기록으로, 새 이름이면 새로 시작합니다.
-          데이터는 이름별로 따로 보관됩니다.
+          <template v-if="authMode === 'login'">등록된 닉네임과 비밀번호로 로그인하세요.</template>
+          <template v-else>새 닉네임과 비밀번호를 등록합니다.</template>
         </p>
-        <p v-if="knownProfiles.length" class="gate-hint gate-existing">
+        <p v-if="authMode === 'login' && knownProfiles.length" class="gate-hint gate-existing">
           사용 중인 닉네임: <b>{{ knownProfiles.join(', ') }}</b>
         </p>
 
@@ -182,19 +194,19 @@ async function retrySync() {
             type="text"
             v-model="nameInput"
             autocomplete="off"
-            placeholder="닉네임 입력"
+            placeholder="닉네임"
             maxlength="24"
           />
           <input
             class="gate-input"
             type="password"
             v-model="pwInput"
-            :autocomplete="isCreatingProfile ? 'new-password' : 'current-password'"
+            :autocomplete="authMode === 'signup' ? 'new-password' : 'current-password'"
             placeholder="비밀번호 (4자 이상)"
             maxlength="64"
           />
           <input
-            v-if="isCreatingProfile"
+            v-if="authMode === 'signup'"
             class="gate-input"
             type="password"
             v-model="pwConfirmInput"
@@ -203,13 +215,13 @@ async function retrySync() {
             maxlength="64"
           />
           <button class="gate-btn" type="submit">
-            {{ isCreatingProfile ? '닉네임 생성' : (isRegisteredProfile ? '로그인' : '들어가기') }}
+            {{ authMode === 'login' ? '로그인' : '닉네임 추가' }}
           </button>
         </form>
-        <p v-if="isCreatingProfile" class="gate-hint">처음 들어오는 닉네임 — 비밀번호를 한 번 더 입력해 확정합니다.</p>
-        <p v-else-if="isRegisteredProfile" class="gate-hint">등록된 닉네임 — 비밀번호가 일치해야 들어올 수 있어요.</p>
-        <p v-else class="gate-hint">닉네임을 입력해주세요.</p>
         <div v-if="nameError" class="gate-error">{{ nameError }}</div>
+        <button type="button" class="gate-toggle" @click="toggleAuthMode">
+          {{ authMode === 'login' ? '신규 추가' : '← 로그인으로' }}
+        </button>
       </div>
 
       <!-- 신체 정보 입력 단계 (새 프로필) — 필수 -->
@@ -325,6 +337,17 @@ async function retrySync() {
 .gate-name-form .gate-btn { padding: 0 14px; }
 .gate-pw-form { display: grid; gap: 8px; }
 .gate-pw-form .gate-btn { padding: 0 14px; height: 40px; }
+.gate-toggle {
+  background: transparent;
+  border: none;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  padding: 8px 0 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.gate-toggle:hover { color: var(--c-accent-ink); }
 .gate-busy {
   font-size: var(--fs-sm);
   color: var(--c-text-muted);
