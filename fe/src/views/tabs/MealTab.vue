@@ -13,6 +13,9 @@ const { foods, mealPresets, foodById } = storeToRefs(catalog)
 
 const SLOTS: Slot[] = ['아침', '점심', '저녁', '간식']
 
+// "다른 음식 추가" details 에서 사용하는 대상 슬롯. 사용자가 직접 선택.
+const extraSlot = ref<Slot>('아침')
+
 const foodQuery = ref('')
 const filteredFoods = computed(() => {
   const q = foodQuery.value.trim()
@@ -227,22 +230,32 @@ function slotKcal(slot: Slot): number {
 
     <details class="extra-foods">
       <summary>다른 음식 추가 (등록 음식 + 카탈로그 외)</summary>
+      <div class="extra-slot-pick">
+        <span class="lab muted small">추가할 끼니</span>
+        <div class="slot-toggles">
+          <button
+            v-for="s in SLOTS" :key="s" type="button"
+            class="slot-toggle" :class="{ on: extraSlot === s }"
+            @click="extraSlot = s"
+          >{{ s }}</button>
+        </div>
+      </div>
       <div class="pool-items extra-grid">
         <label
           v-for="f in filteredFoods.filter(x => !presetFoodIds.has(x.id))"
           :key="f.id"
           class="check-card"
-          :class="{ checked: isChecked('아침', f.id), logged: isAlreadyLogged('아침', f.id) }"
+          :class="{ checked: isChecked(extraSlot, f.id), logged: isAlreadyLogged(extraSlot, f.id) }"
         >
           <input
             type="checkbox"
-            :checked="isChecked('아침', f.id)"
-            @change="toggleSelected('아침', f.id)"
+            :checked="isChecked(extraSlot, f.id)"
+            @change="toggleSelected(extraSlot, f.id)"
           />
           <div class="cc-body">
             <div class="cc-name">{{ f.name }}
               <span v-if="f.id.startsWith('custom-')" class="tag tag-soft">내 음식</span>
-              <span v-if="isAlreadyLogged('아침', f.id)" class="cc-tag">기록됨</span>
+              <span v-if="isAlreadyLogged(extraSlot, f.id)" class="cc-tag">기록됨</span>
             </div>
             <div class="cc-meta muted">
               <span class="num">{{ f.kcal }}</span> kcal · P{{ f.protein }}·C{{ f.carbs }}·F{{ f.fat }}
@@ -513,4 +526,10 @@ select.input { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http:/
   text-transform: uppercase;
   margin-bottom: 4px;
 }
+
+.extra-slot-pick { display: flex; align-items: center; gap: 10px; padding: 8px 4px 12px; flex-wrap: wrap; }
+.slot-toggles { display: flex; gap: 6px; flex-wrap: wrap; }
+.slot-toggle { height: 30px; padding: 0 12px; background: var(--c-surface); color: var(--c-text-muted); border: 1px solid var(--c-border-strong); border-radius: 999px; font-size: var(--fs-sm); cursor: pointer; transition: all 0.15s; }
+.slot-toggle:hover { background: var(--c-border); }
+.slot-toggle.on { background: var(--c-accent); color: #fff; border-color: var(--c-accent); font-weight: 600; }
 </style>
