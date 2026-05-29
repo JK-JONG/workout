@@ -106,9 +106,9 @@ export const EXERCISES: ExerciseItem[] = [
   // ── 추가 운동 (부위별 보강) — image_url 미상은 emoji fallback ──
   // 가슴
   { id: 'decline-bench',       name: '디클라인 벤치프레스',      category: '가슴', equipment: '바벨',   met: 6.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근 하부, 삼두근',  search_en: 'decline bench press', image_url: IMG + '0753-ETZfAbZ.gif' },
-  { id: 'cable-crossover',     name: '케이블 크로스오버',        category: '가슴', equipment: '케이블', met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근 내측',          search_en: 'cable crossover', emoji: '💪' },
+  { id: 'cable-crossover',     name: '케이블 크로스오버',        category: '가슴', equipment: '케이블', met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근 내측',          search_en: 'cable upper chest crossovers', image_url: IMG + '1270-j7XMAyn.gif' },
   { id: 'incline-db-fly',      name: '인클라인 덤벨 플라이',     category: '가슴', equipment: '덤벨',   met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근 상부',          search_en: 'incline dumbbell fly', image_url: IMG + '0171-tBWXbIT.gif' },
-  { id: 'pec-deck',            name: '펙 덱 플라이',             category: '가슴', equipment: '머신',   met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근',               search_en: 'pec deck fly', emoji: '💪' },
+  { id: 'pec-deck',            name: '펙 덱 플라이 (케이블 미들)', category: '가슴', equipment: '머신',   met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근',               search_en: 'cable middle fly', image_url: IMG + '0188-xLYSdtg.gif' },
   // 등
   { id: 'pendlay-row',         name: '펜들레이 로우',            category: '등',   equipment: '바벨',   met: 6.0, unit: 'reps', duration_per_set: 0.7, body_part: '광배근, 승모근',       search_en: 'pendlay row', image_url: IMG + '3017-r0z6xzQ.gif' },
   { id: 'pullover',            name: '덤벨 풀오버',              category: '등',   equipment: '덤벨',   met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '광배근, 대흉근',       search_en: 'dumbbell pullover', image_url: IMG + '0375-9XjtHvS.gif' },
@@ -140,4 +140,25 @@ export const EXERCISES: ExerciseItem[] = [
   // 유산소
   { id: 'rowing',              name: '로잉 머신',                category: '유산소', equipment: '유산소기구', met: 7.0, unit: 'time', body_part: '전신', search_en: 'rowing machine', emoji: '🚣' },
   { id: 'jump-rope',           name: '줄넘기',                   category: '유산소', equipment: '맨몸', met: 11.0, unit: 'time', body_part: '심폐, 종아리', search_en: 'jump rope', image_url: IMG + '2612-e1e76I2.gif' },
+
+  // ── 추가 보강 (자주 쓰는 변형) ──
+  // 가슴
+  { id: 'cable-decline-fly',   name: '케이블 디클라인 플라이',   category: '가슴', equipment: '케이블', met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근 하부',          search_en: 'cable decline fly', image_url: IMG + '0158-7saC5zz.gif' },
+  { id: 'cable-low-fly',       name: '케이블 로우 플라이',       category: '가슴', equipment: '케이블', met: 5.0, unit: 'reps', duration_per_set: 0.7, body_part: '대흉근 상부',          search_en: 'cable low fly', image_url: IMG + '0179-FVmZVhk.gif' },
+  // 등
+  { id: 'wide-lat-pulldown',   name: '와이드 그립 렛 풀 다운',   category: '등',   equipment: '머신',   met: 5.5, unit: 'reps', duration_per_set: 0.7, body_part: '광배근',               search_en: 'wide grip lat pulldown', image_url: IMG + '0145-MK1Em7B.gif' },
+  // 어깨
+  { id: 'cable-rear-delt',     name: '케이블 리어 델트 로우',    category: '어깨', equipment: '케이블', met: 4.5, unit: 'reps', duration_per_set: 0.7, body_part: '후면 삼각근',          search_en: 'cable rear delt row', image_url: IMG + '0202-yUdIGNs.gif' },
+  { id: 'db-rear-lateral',     name: '덤벨 리어 레터럴 레이즈',  category: '어깨', equipment: '덤벨',   met: 4.5, unit: 'reps', duration_per_set: 0.7, body_part: '후면 삼각근',          search_en: 'dumbbell rear lateral raise', image_url: IMG + '0380-v1qBec9.gif' },
+  // 팔
+  { id: 'cable-hammer-curl',   name: '케이블 해머 컬',           category: '팔',   equipment: '케이블', met: 4.0, unit: 'reps', duration_per_set: 0.7, body_part: '상완이두근, 상완요골근', search_en: 'cable hammer curl', image_url: IMG + '0165-HPlPoQA.gif' },
+  // 하체
+  { id: 'front-squat',         name: '바벨 프론트 스쿼트',       category: '하체', equipment: '바벨',   met: 6.5, unit: 'reps', duration_per_set: 0.7, body_part: '대퇴사두근, 코어',     search_en: 'barbell front squat', image_url: IMG + '0029-qi996YS.gif' },
+  { id: 'sumo-deadlift',       name: '스모 데드리프트',          category: '하체', equipment: '바벨',   met: 6.5, unit: 'reps', duration_per_set: 0.7, body_part: '대둔근, 햄스트링, 내전근', search_en: 'sumo deadlift', image_url: IMG + '0117-KgI0tqW.gif' },
+  { id: 'goblet-squat',        name: '고블릿 스쿼트',            category: '하체', equipment: '덤벨',   met: 6.0, unit: 'reps', duration_per_set: 0.7, body_part: '대퇴사두, 대둔근',     search_en: 'dumbbell goblet squat', image_url: IMG + '1760-yn8yg1r.gif' },
+  // 복근
+  { id: 'sit-up',              name: '싯업',                     category: '복근', equipment: '맨몸',   met: 4.5, unit: 'reps', duration_per_set: 0.5, body_part: '복직근',               search_en: 'sit-up', image_url: IMG + '0001-2gPfomN.gif' },
+  { id: 'reverse-crunch',      name: '리버스 크런치',            category: '복근', equipment: '맨몸',   met: 4.0, unit: 'reps', duration_per_set: 0.5, body_part: '복직근 하부',          search_en: 'reverse crunch', image_url: IMG + '0873-RqOtqD7.gif' },
+  // 유산소
+  { id: 'high-knee',           name: '하이 니',                  category: '유산소', equipment: '맨몸', met: 8.0, unit: 'time', body_part: '심폐, 하체', search_en: 'high knees', image_url: IMG + '3636-ealLwvX.gif' },
 ]

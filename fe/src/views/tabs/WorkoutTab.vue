@@ -211,6 +211,7 @@ function lastSummary(exId: string): string | null {
               :class="{ picked: selectedExercise?.id === e.id }"
               @click="pickExercise(e)"
             >
+              <button class="fav-btn on" @click.stop="catalog.toggleFavorite(e.id)" :title="'즐겨찾기 해제'">★</button>
               <img v-if="hasValidImage(e)" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" @error="markImageBroken(e.id)" />
               <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">{{ e.emoji || '⚡' }}</div>
               <div class="row-main">
@@ -220,7 +221,6 @@ function lastSummary(exId: string): string | null {
                   <span class="muted">{{ e.body_part }}</span>
                 </div>
               </div>
-              <button class="fav-btn on" @click.stop="catalog.toggleFavorite(e.id)" :title="'즐겨찾기 해제'">★</button>
               <div class="row-aux-col">
                 <span v-if="lastSummary(e.id)" class="last-pill num">전 {{ lastSummary(e.id) }}</span>
                 <span class="row-aux num">MET {{ e.met }}</span>
@@ -243,6 +243,9 @@ function lastSummary(exId: string): string | null {
               :class="{ picked: selectedExercise?.id === e.id }"
               @click="pickExercise(e)"
             >
+              <button class="fav-btn" :class="{ on: catalog.isFavorite(e.id) }" @click.stop="catalog.toggleFavorite(e.id)" :title="catalog.isFavorite(e.id) ? '즐겨찾기 해제' : '즐겨찾기 추가'">
+                {{ catalog.isFavorite(e.id) ? '★' : '☆' }}
+              </button>
               <img v-if="hasValidImage(e)" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" @error="markImageBroken(e.id)" />
               <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">{{ e.emoji || '⚡' }}</div>
               <div class="row-main">
@@ -253,9 +256,6 @@ function lastSummary(exId: string): string | null {
                   <span v-if="e.note" class="muted">· {{ e.note }}</span>
                 </div>
               </div>
-              <button class="fav-btn" :class="{ on: catalog.isFavorite(e.id) }" @click.stop="catalog.toggleFavorite(e.id)" :title="catalog.isFavorite(e.id) ? '즐겨찾기 해제' : '즐겨찾기 추가'">
-                {{ catalog.isFavorite(e.id) ? '★' : '☆' }}
-              </button>
               <div class="row-aux-col">
                 <span v-if="lastSummary(e.id)" class="last-pill num">전 {{ lastSummary(e.id) }}</span>
                 <span class="row-aux num">MET {{ e.met }}</span>
