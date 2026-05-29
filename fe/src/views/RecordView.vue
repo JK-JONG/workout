@@ -10,8 +10,9 @@ import BodyOnboardingForm from '@/components/BodyOnboardingForm.vue'
 import WorkoutTab from '@/views/tabs/WorkoutTab.vue'
 import MealTab from '@/views/tabs/MealTab.vue'
 import BodyTab from '@/views/tabs/BodyTab.vue'
+import TodayView from '@/views/TodayView.vue'
 
-type TabKey = 'workout' | 'meal' | 'body'
+type TabKey = 'workout' | 'meal' | 'body' | 'today'
 const tab = useLocalStorage<TabKey>('wt.recordTab', 'workout')
 
 const log = useLogStore()
@@ -66,6 +67,7 @@ function onBodySkip() {
 }
 
 const tabs: { key: TabKey; label: string; icon: string }[] = [
+  { key: 'today', label: '오늘', icon: '👀' },
   { key: 'workout', label: '운동', icon: '🏋️' },
   { key: 'meal', label: '식단', icon: '🍱' },
   { key: 'body', label: '신체', icon: '📏' },
@@ -245,7 +247,7 @@ async function exportReport() {
             <span>{{ exporting ? '생성 중…' : '오늘의 평가요약' }}</span>
           </button>
 
-          <div ref="calendarRef" class="date-picker" :class="{ 'is-today': isToday, 'is-open': showCalendar }">
+          <div v-if="tab !== 'today'" ref="calendarRef" class="date-picker" :class="{ 'is-today': isToday, 'is-open': showCalendar }">
             <button
               type="button"
               class="date-nav"
@@ -317,10 +319,11 @@ async function exportReport() {
         </div>
       </div>
 
-      <DailySummary />
+      <DailySummary v-if="tab !== 'today'" />
 
       <div class="tab-body">
-        <WorkoutTab v-if="tab === 'workout'" />
+        <TodayView v-if="tab === 'today'" />
+        <WorkoutTab v-else-if="tab === 'workout'" />
         <MealTab v-else-if="tab === 'meal'" />
         <BodyTab v-else-if="tab === 'body'" />
       </div>

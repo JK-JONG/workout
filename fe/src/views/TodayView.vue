@@ -360,17 +360,19 @@ const slotIcon: Record<Slot | '기타', string> = {
   color: var(--c-text-soft);
 }
 
-/* 식단 그룹 */
+/* 식단 그룹 — 헤더(아침/점심…)와 항목 행이 좌우 패딩 동일하게 flush 정렬 */
 .meal-groups { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
-.meal-group { display: grid; gap: 6px; }
+.meal-group { display: grid; gap: 4px; }
 .meal-group-head {
-  display: flex; align-items: center; gap: 8px;
-  padding-bottom: 5px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 0 0 5px;
   border-bottom: 1px dashed var(--c-border);
 }
 .meal-slot-icon { font-size: 14px; }
 .meal-slot-name {
-  flex: 1;
   font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--c-text);
@@ -382,15 +384,14 @@ const slotIcon: Record<Slot | '기타', string> = {
   font-weight: 600;
   color: var(--c-accent-ink);
 }
-.meal-items { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; }
+.meal-items { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; }
 .meal-row {
   display: grid;
   grid-template-columns: 1fr auto auto;
   gap: 8px;
   align-items: baseline;
-  padding: 4px 8px;
+  padding: 4px 0;
   font-size: var(--fs-sm);
-  border-radius: var(--radius-sm);
   transition: background 0.12s;
 }
 .meal-row:hover { background: var(--c-surface-2); }

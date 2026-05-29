@@ -8,7 +8,6 @@ const { activeProfile } = storeToRefs(profile)
 
 const tabs = [
   { to: '/', label: '기록', icon: '✎' },
-  { to: '/today', label: '오늘', icon: '◉' },
   { to: '/stats', label: '통계', icon: '▦' },
   { to: '/settings', label: '설정', icon: '⚙' },
 ]
