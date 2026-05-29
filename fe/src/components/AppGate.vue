@@ -43,15 +43,24 @@ watch(activeProfile, () => {
 })
 
 const nameInput = ref('')
+const pwInput = ref('')
 const nameError = ref('')
-function submitName() {
+async function submitName() {
   nameError.value = ''
   const n = nameInput.value.trim()
-  if (!n) { nameError.value = '이름을 입력해주세요.'; return }
-  if (!profile.isValidName(n)) { nameError.value = '이름에 사용할 수 없는 문자가 포함되어 있습니다.'; return }
+  const pw = pwInput.value
+  if (!n) { nameError.value = '닉네임을 입력해주세요.'; return }
+  if (!profile.isValidName(n)) { nameError.value = '닉네임에 사용할 수 없는 문자가 포함되어 있습니다.'; return }
+  if (!profile.isValidPassword(pw)) { nameError.value = '비밀번호는 4자 이상이에요.'; return }
   const isNew = !knownProfiles.value.includes(n)
+  // 비번 검증: vault 에 hash 가 있으면 일치해야 진행, 없으면 첫 설정으로 저장.
+  const res = await profile.verifyOrSetPassword(n, pw)
+  if (!res.ok) { nameError.value = '비밀번호가 맞지 않아요.'; return }
   needsBodyForNewProfile.value = isNew
   profile.setProfile(n)
+  pwInput.value = ''
+  // 다음 sync 때 passwordHash 가 vault 에 함께 push 됨(첫 설정의 경우).
+  syncStore.syncNow().catch(() => { /* 실패해도 게이트는 통과 */ })
 }
 // ── 동기화 단계 ──────────────────────────────────────────
 // 모델: 관리자가 가진 "고정 동기화 코드" 하나를 기기마다 1회 입력한다.
@@ -139,7 +148,7 @@ async function retrySync() {
           사용 중인 닉네임: <b>{{ knownProfiles.join(', ') }}</b>
         </p>
 
-        <form class="gate-name-form" @submit.prevent="submitName">
+        <form class="gate-pw-form" @submit.prevent="submitName">
           <input
             class="gate-input"
             type="text"
@@ -148,8 +157,17 @@ async function retrySync() {
             placeholder="닉네임 입력"
             maxlength="24"
           />
+          <input
+            class="gate-input"
+            type="password"
+            v-model="pwInput"
+            autocomplete="current-password"
+            placeholder="비밀번호 (4자 이상)"
+            maxlength="64"
+          />
           <button class="gate-btn" type="submit">들어가기</button>
         </form>
+        <p class="gate-hint">처음 들어오는 닉네임이라면 입력한 비밀번호가 그대로 저장돼요. 이미 쓰던 닉네임이라면 일치해야 들어올 수 있어요.</p>
         <div v-if="nameError" class="gate-error">{{ nameError }}</div>
       </div>
 
@@ -264,6 +282,8 @@ async function retrySync() {
   align-items: end;
 }
 .gate-name-form .gate-btn { padding: 0 14px; }
+.gate-pw-form { display: grid; gap: 8px; }
+.gate-pw-form .gate-btn { padding: 0 14px; height: 40px; }
 .gate-busy {
   font-size: var(--fs-sm);
   color: var(--c-text-muted);

@@ -3,9 +3,11 @@ import type { FoodItem } from '@/data/foods'
 
 // vault(동기화 저장 단위) 페이로드 — 앱 전체 스냅샷(모든 프로필).
 // v2: deletedProfiles(톰스톤) 추가 — 한 기기에서 지운 프로필이 union 머지로
-// 다른 기기 sync 때 되살아나는 문제를 해결. 이전 vault(v1)는 deletedProfiles
-// 가 없으므로 mergeVaults 에서 `?? []` 로 안전하게 처리한다.
-export const VAULT_SCHEMA = 2
+//     다른 기기 sync 때 되살아나는 문제를 해결. 이전 vault(v1)는 deletedProfiles
+//     가 없으므로 mergeVaults 에서 `?? []` 로 안전하게 처리한다.
+// v3: VaultProfile.passwordHash 추가 — 프로필별 비밀번호(sha256 hex). v2 vault 는
+//     passwordHash 가 없는데, 다음 로그인 시 사용자가 입력한 값이 첫 설정으로 저장된다.
+export const VAULT_SCHEMA = 3
 
 export interface VaultMeta {
   weight?: number
@@ -20,6 +22,8 @@ export interface VaultProfile {
   body: BodyEntry[]
   customFoods: FoodItem[]
   meta: VaultMeta
+  // 프로필 비밀번호의 sha256 hex. 비어있으면 vault 에 비번이 아직 설정 안 됨(v2 호환).
+  passwordHash?: string
 }
 
 export interface VaultData {
@@ -71,6 +75,9 @@ function mergeProfile(local: VaultProfile, remote: VaultProfile): VaultProfile {
     body: unionById(local.body, remote.body),
     customFoods: unionById(local.customFoods, remote.customFoods),
     meta: mergeMeta(local.meta, remote.meta),
+    // password 는 remote(vault 의 정본) 우선. 두 기기에서 동시에 첫 설정한 경우엔
+    // remote 가 살아남고 local 입력은 다음 sync 에서 reject 된다(검증 단계에서).
+    passwordHash: remote.passwordHash || local.passwordHash,
   }
 }
 

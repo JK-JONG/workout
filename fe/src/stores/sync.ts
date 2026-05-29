@@ -108,6 +108,7 @@ export const useSyncStore = defineStore('sync', () => {
 
     const profiles: Record<string, VaultProfile> = {}
     for (const name of names) {
+      const passwordHash = profile.getStoredHash(name) || undefined
       if (name === active) {
         profiles[name] = {
           workouts: JSON.parse(JSON.stringify(log.workouts)),
@@ -120,6 +121,7 @@ export const useSyncStore = defineStore('sync', () => {
             birthYear: log.birthYear,
             activityLevel: log.activityLevel,
           },
+          passwordHash,
         }
       } else {
         profiles[name] = {
@@ -133,6 +135,7 @@ export const useSyncStore = defineStore('sync', () => {
             birthYear: readKey<number | null>(name, 'birthYear', null),
             activityLevel: readKey<number | undefined>(name, 'activityLevel', undefined),
           },
+          passwordHash,
         }
       }
     }
@@ -175,6 +178,8 @@ export const useSyncStore = defineStore('sync', () => {
       if (p.meta.sex) writeKey(name, 'sex', p.meta.sex)
       if (p.meta.birthYear != null) writeKey(name, 'birthYear', p.meta.birthYear)
       if (p.meta.activityLevel != null) writeKey(name, 'activityLevel', p.meta.activityLevel)
+      // vault 정본의 passwordHash 가 있으면 캐시. 없으면 기존 로컬 hash 유지(첫 설정 단계 대비).
+      if (p.passwordHash) profile.setStoredHash(name, p.passwordHash)
     }
 
     profile.knownProfiles = uniq([...profile.knownProfiles, ...v.knownProfiles])
