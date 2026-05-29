@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useLogStore, type SetLog } from '@/stores/log'
 import { useCatalogStore } from '@/stores/catalog'
-import { type ExerciseItem, type Routine } from '@/data/exercises'
+import { type ExerciseItem } from '@/data/exercises'
 import { kcalByDuration, kcalByDistance, kcalByReps } from '@/composables/useCalorie'
 import ExerciseAddModal from '@/components/ExerciseAddModal.vue'
 
@@ -14,14 +14,10 @@ const catalog = useCatalogStore()
 const { weightKg, selectedDate, workoutsOfDate } = storeToRefs(log)
 const { exercises } = storeToRefs(catalog)
 
-const ROUTINE_ORDER: Routine[] = ['등&삼두', '하체&이두', '가슴&복근', '어깨&삼두']
-const EXTRA_CATEGORY_ORDER = ['가슴', '등', '하체', '어깨', '팔', '복근', '맨몸']
+// 부위 표시 순서. 카탈로그의 category 값을 그대로 사용.
+const CATEGORY_ORDER = ['가슴', '등', '어깨', '팔', '하체', '복근', '유산소', '맨몸'] as const
 
-// 매일 하는 맨몸 4종 — 다른 분류 리스트에서는 중복 제거되어 안 보임.
-const DAILY_IDS = ['crunch-25x3', 'pushup', 'bw-lunge', 'ab-slide'] as const
-const DAILY_IDS_SET: ReadonlySet<string> = new Set(DAILY_IDS)
-
-// 이미지가 깨졌을 때 표시할 ID들 (Set은 reactivity 안정성을 위해 object로 관리)
+// 이미지가 깨졌을 때 표시할 ID들
 const brokenImages = ref<Record<string, boolean>>({})
 function markImageBroken(id: string) {
   brokenImages.value = { ...brokenImages.value, [id]: true }
@@ -39,40 +35,40 @@ const filteredExercises = computed(() => {
     (e.search_en ?? '').toLowerCase().includes(q.toLowerCase()) ||
     e.category.includes(q) ||
     e.equipment.includes(q) ||
-    (e.routine ?? '').includes(q),
+    (e.body_part ?? '').includes(q),
   )
 })
-// 매일 맨몸 운동 (검색 무관 — 항상 상단 노출)
-const dailyExercises = computed<ExerciseItem[]>(() => {
+
+// 즐겨찾기 운동 (검색 무관 — 항상 상단 펼침)
+const favoriteExercises = computed<ExerciseItem[]>(() => {
+  const ids = catalog.favoriteExerciseIds as unknown as string[]
   const byId = new Map(exercises.value.map(e => [e.id, e]))
-  return DAILY_IDS.map(id => byId.get(id)).filter((e): e is ExerciseItem => Boolean(e))
+  return ids.map(id => byId.get(id)).filter((e): e is ExerciseItem => Boolean(e))
 })
 
-function routineExercises(r: Routine): ExerciseItem[] {
-  return filteredExercises.value
-    .filter(e => e.routine === r && !DAILY_IDS_SET.has(e.id))
-    .sort((a, b) => (a.order_no ?? 0) - (b.order_no ?? 0))
-}
-const cardioExercises = computed(() =>
-  filteredExercises.value.filter(e => !e.routine && e.category === '유산소' && !DAILY_IDS_SET.has(e.id)),
-)
-const extraExerciseGroups = computed(() => {
+// 부위별 그룹 (검색어 적용된 결과)
+const exercisesByCategory = computed(() => {
   const m = new Map<string, ExerciseItem[]>()
   for (const e of filteredExercises.value) {
-    if (e.routine) continue
-    if (e.category === '유산소') continue
-    if (DAILY_IDS_SET.has(e.id)) continue
-    const list = m.get(e.category) ?? []
+    const cat = (CATEGORY_ORDER as readonly string[]).includes(e.category) ? e.category : '맨몸'
+    const list = m.get(cat) ?? []
     list.push(e)
-    m.set(e.category, list)
+    m.set(cat, list)
   }
-  return EXTRA_CATEGORY_ORDER
+  return CATEGORY_ORDER
     .filter(c => m.has(c))
     .map(c => [c, m.get(c)!] as [string, ExerciseItem[]])
 })
-const extraExerciseCount = computed(() =>
-  filteredExercises.value.filter(e => !e.routine && e.category !== '유산소' && !DAILY_IDS_SET.has(e.id)).length,
-)
+
+// 아코디언 열림 상태 — 기본 닫힘. 검색 중이면 자동으로 모두 열림.
+const openCategories = ref<Record<string, boolean>>({})
+function toggleCategory(cat: string) {
+  openCategories.value = { ...openCategories.value, [cat]: !openCategories.value[cat] }
+}
+function isCategoryOpen(cat: string): boolean {
+  if (exerciseQuery.value.trim()) return true  // 검색 중에는 모두 펼침
+  return Boolean(openCategories.value[cat])
+}
 
 const selectedExercise = ref<ExerciseItem | null>(null)
 const setLogs = ref<SetLog[]>([])
@@ -200,17 +196,17 @@ function lastSummary(exId: string): string | null {
     </div>
 
     <div class="split">
-      <!-- 좌: 매일 맨몸 + 4분할 + 유산소 -->
+      <!-- 좌: 즐겨찾기(항상 펼침) + 부위별 아코디언 -->
       <div class="split-left">
-        <div v-if="dailyExercises.length" class="routine-block daily-block">
+        <div v-if="favoriteExercises.length" class="routine-block fav-block">
           <div class="routine-head">
-            <span class="routine-name">매일 맨몸</span>
-            <span class="routine-count muted small">{{ dailyExercises.length }}개 · 고정</span>
+            <span class="routine-name">★ 즐겨찾기</span>
+            <span class="routine-count muted small">{{ favoriteExercises.length }}개</span>
           </div>
           <ul class="list">
             <li
-              v-for="e in dailyExercises"
-              :key="e.id"
+              v-for="e in favoriteExercises"
+              :key="'fav-' + e.id"
               class="row-item"
               :class="{ picked: selectedExercise?.id === e.id }"
               @click="pickExercise(e)"
@@ -220,10 +216,11 @@ function lastSummary(exId: string): string | null {
               <div class="row-main">
                 <div class="row-name">{{ e.name }}<span v-if="e.search_en" class="row-en"> ({{ e.search_en }})</span></div>
                 <div class="row-sub">
-                  <span class="tag tag-soft">매일</span>
+                  <span class="tag">{{ e.equipment }}</span>
                   <span class="muted">{{ e.body_part }}</span>
                 </div>
               </div>
+              <button class="fav-btn on" @click.stop="catalog.toggleFavorite(e.id)" :title="'즐겨찾기 해제'">★</button>
               <div class="row-aux-col">
                 <span v-if="lastSummary(e.id)" class="last-pill num">전 {{ lastSummary(e.id) }}</span>
                 <span class="row-aux num">MET {{ e.met }}</span>
@@ -232,15 +229,16 @@ function lastSummary(exId: string): string | null {
           </ul>
         </div>
 
-        <div v-for="r in ROUTINE_ORDER" :key="r" class="routine-block">
-          <div class="routine-head">
-            <span class="routine-name">{{ r }}</span>
-            <span class="routine-count muted small">{{ routineExercises(r).length }}개</span>
-          </div>
-          <ul class="list">
+        <div v-for="[cat, list] in exercisesByCategory" :key="cat" class="routine-block accordion" :class="{ open: isCategoryOpen(cat) }">
+          <button class="routine-head accordion-head" type="button" @click="toggleCategory(cat)" :aria-expanded="isCategoryOpen(cat)">
+            <span class="routine-name">{{ cat }}</span>
+            <span class="routine-count muted small">{{ list.length }}개</span>
+            <span class="accordion-caret" aria-hidden="true">{{ isCategoryOpen(cat) ? '▾' : '▸' }}</span>
+          </button>
+          <ul v-show="isCategoryOpen(cat)" class="list">
             <li
-              v-for="e in routineExercises(r)"
-              :key="e.id"
+              v-for="e in list"
+              :key="cat + '-' + e.id"
               class="row-item"
               :class="{ picked: selectedExercise?.id === e.id }"
               @click="pickExercise(e)"
@@ -248,18 +246,16 @@ function lastSummary(exId: string): string | null {
               <img v-if="hasValidImage(e)" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" @error="markImageBroken(e.id)" />
               <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">{{ e.emoji || '⚡' }}</div>
               <div class="row-main">
-                <div class="row-lead">
-                  <span class="row-index num">{{ e.order_no }}</span>
-                  <span class="row-name">
-                    {{ e.name }}<span v-if="e.search_en" class="row-en"> ({{ e.search_en }})</span>
-                  </span>
-                </div>
+                <div class="row-name">{{ e.name }}<span v-if="e.search_en" class="row-en"> ({{ e.search_en }})</span></div>
                 <div class="row-sub">
                   <span class="tag">{{ e.equipment }}</span>
                   <span class="muted">{{ e.body_part }}</span>
                   <span v-if="e.note" class="muted">· {{ e.note }}</span>
                 </div>
               </div>
+              <button class="fav-btn" :class="{ on: catalog.isFavorite(e.id) }" @click.stop="catalog.toggleFavorite(e.id)" :title="catalog.isFavorite(e.id) ? '즐겨찾기 해제' : '즐겨찾기 추가'">
+                {{ catalog.isFavorite(e.id) ? '★' : '☆' }}
+              </button>
               <div class="row-aux-col">
                 <span v-if="lastSummary(e.id)" class="last-pill num">전 {{ lastSummary(e.id) }}</span>
                 <span class="row-aux num">MET {{ e.met }}</span>
@@ -267,55 +263,6 @@ function lastSummary(exId: string): string | null {
             </li>
           </ul>
         </div>
-
-        <div v-if="cardioExercises.length" class="routine-block">
-          <div class="routine-head">
-            <span class="routine-name">유산소</span>
-          </div>
-          <ul class="list">
-            <li v-for="e in cardioExercises" :key="e.id" class="row-item" :class="{ picked: selectedExercise?.id === e.id }" @click="pickExercise(e)">
-              <img v-if="hasValidImage(e)" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" @error="markImageBroken(e.id)" />
-              <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">{{ e.emoji || '⚡' }}</div>
-              <div class="row-main">
-                <div class="row-name">{{ e.name }}<span v-if="e.search_en" class="row-en"> ({{ e.search_en }})</span></div>
-                <div class="row-sub muted">{{ e.equipment }}</div>
-              </div>
-              <span class="row-aux num">MET {{ e.met }}</span>
-            </li>
-          </ul>
-        </div>
-
-        <details v-if="extraExerciseCount > 0" class="extras">
-          <summary>
-            <span class="extras-title">+ 기타 운동 (헬스기구·맨몸)</span>
-            <span class="extras-count muted small">{{ extraExerciseCount }}개</span>
-          </summary>
-          <div class="extras-body">
-            <details v-for="[cat, list] in extraExerciseGroups" :key="cat" class="extras-cat">
-              <summary>
-                <span class="extras-cat-name">{{ cat }}</span>
-                <span class="muted small">{{ list.length }}개</span>
-              </summary>
-              <ul class="list">
-                <li v-for="e in list" :key="e.id" class="row-item" :class="{ picked: selectedExercise?.id === e.id }" @click="pickExercise(e)">
-                  <img v-if="hasValidImage(e)" :src="e.image_url" :alt="e.name" class="row-thumb" loading="lazy" @error="markImageBroken(e.id)" />
-              <div v-else class="row-thumb row-thumb-bw" aria-hidden="true">{{ e.emoji || '⚡' }}</div>
-                  <div class="row-main">
-                    <div class="row-name">{{ e.name }}<span v-if="e.search_en" class="row-en"> ({{ e.search_en }})</span></div>
-                    <div class="row-sub">
-                      <span class="tag">{{ e.equipment }}</span>
-                      <span class="muted">{{ e.body_part }}</span>
-                    </div>
-                  </div>
-                  <div class="row-aux-col">
-                    <span v-if="lastSummary(e.id)" class="last-pill num">전 {{ lastSummary(e.id) }}</span>
-                    <span class="row-aux num">MET {{ e.met }}</span>
-                  </div>
-                </li>
-              </ul>
-            </details>
-          </div>
-        </details>
       </div>
 
       <!-- 우: picker(선택 시) + 오늘 운동 기록 (항상 보임, sticky) -->
@@ -771,6 +718,17 @@ function lastSummary(exId: string): string | null {
 .add-ex-btn { height: 30px; padding: 0 12px; border: 1px solid var(--c-accent-soft); background: var(--c-surface); color: var(--c-accent-ink); border-radius: var(--radius-md); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
 .add-ex-btn:hover { background: var(--c-accent-soft); }
 .card-head-tools { display: flex; align-items: center; gap: 8px; }
+
+/* 즐겨찾기 + 아코디언 */
+.fav-block { background: var(--c-accent-soft); border-radius: var(--radius-md); padding: 6px 0; }
+.fav-block .routine-name { color: var(--c-accent-ink); font-weight: 700; }
+.fav-btn { width: 28px; height: 28px; flex: none; background: transparent; border: none; cursor: pointer; font-size: 18px; color: var(--c-text-muted); border-radius: 6px; display: grid; place-items: center; transition: color 0.15s, background 0.15s; }
+.fav-btn:hover { background: var(--c-border); }
+.fav-btn.on { color: #f4a300; }
+.accordion .accordion-head { width: 100%; display: flex; align-items: center; gap: 8px; background: transparent; border: none; cursor: pointer; padding: 8px 4px; text-align: left; font: inherit; }
+.accordion .accordion-head:hover { background: var(--c-border); border-radius: var(--radius-sm); }
+.accordion-caret { margin-left: auto; color: var(--c-text-muted); font-size: 12px; }
+.accordion:not(.open) .accordion-head { opacity: 0.85; }
 .icon-btn { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: var(--c-text-muted); border-radius: 50%; transition: background 0.15s, color 0.15s; }
 .icon-btn:hover { background: var(--c-border); color: var(--c-text); }
 .icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }

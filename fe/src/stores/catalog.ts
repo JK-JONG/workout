@@ -9,6 +9,8 @@ import { useProfileStorage } from '@/composables/useProfileStorage'
 export const useCatalogStore = defineStore('catalog', () => {
   const customFoods = useProfileStorage<FoodItem[]>('customFoods', [])
   const customExercises = useProfileStorage<ExerciseItem[]>('customExercises', [])
+  // 프로필별 운동 즐겨찾기 id 목록.
+  const favoriteExerciseIds = useProfileStorage<string[]>('favoriteExerciseIds', [])
 
   const exercises = computed<ExerciseItem[]>(() => [...EXERCISES, ...customExercises.value])
   const foods = computed<FoodItem[]>(() => [...FOODS, ...customFoods.value])
@@ -54,10 +56,18 @@ export const useCatalogStore = defineStore('catalog', () => {
     customExercises.value = customExercises.value.filter(e => e.id !== id)
   }
 
+  function isFavorite(id: string): boolean { return favoriteExerciseIds.value.includes(id) }
+  function toggleFavorite(id: string) {
+    favoriteExerciseIds.value = isFavorite(id)
+      ? favoriteExerciseIds.value.filter(x => x !== id)
+      : [...favoriteExerciseIds.value, id]
+  }
+
   return {
-    exercises, foods, mealPresets, customFoods, customExercises,
+    exercises, foods, mealPresets, customFoods, customExercises, favoriteExerciseIds,
     routines, foodById,
     addCustomFood, removeCustomFood,
     addCustomExercise, removeCustomExercise,
+    isFavorite, toggleFavorite,
   }
 })
