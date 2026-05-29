@@ -12,6 +12,12 @@ const syncStore = useSyncStore()
 const { activeProfile, knownProfiles } = storeToRefs(profile)
 const { body, sex, birthYear, latestBody } = storeToRefs(log)
 
+// 세션 인증 마커. localStorage 가 아니라 sessionStorage 라서 탭/창을 닫으면 사라진다.
+// → 다음 접속 시 비밀번호 재입력 필수. activeProfile 은 UX 위해 유지(닉네임 자동 채움).
+const SESSION_KEY = 'wt.authedProfile'
+const sessionAuthedFor = ref<string>(sessionStorage.getItem(SESSION_KEY) ?? '')
+const sessionOK = computed(() => sessionAuthedFor.value && sessionAuthedFor.value === activeProfile.value)
+
 // 새 프로필 강제 신체 입력 모드
 const needsBodyForNewProfile = ref(false)
 // 기존 프로필인데 BMR 정보가 비어있는 경우 자동 보완 모드 (한 번 dismiss하면 더 안 띄움)
@@ -30,7 +36,8 @@ const stage = computed<'sync' | 'profile' | 'body' | 'meta' | 'done'>(() => {
   // setCode 가 code 를 채우면 hasCode=true 가 되므로, 네트워크 왕복 동안에도
   // 화면을 붙잡으려고 syncBusy 를 함께 본다. (env 미설정이면 생략 → 곧장 profile)
   if (syncStore.configured && (!syncStore.hasCode || syncBusy.value)) return 'sync'
-  if (!activeProfile.value) return 'profile'
+  // 세션 인증 안 됐으면 무조건 profile 단계 (비번 다시 받기). activeProfile 만으로는 통과 X.
+  if (!activeProfile.value || !sessionOK.value) return 'profile'
   if (needsBodyForNewProfile.value && body.value.length === 0) return 'body'
   if (needsMetaUpdate.value && !dismissedMeta.value) return 'meta'
   return 'done'
@@ -42,7 +49,8 @@ watch(activeProfile, () => {
   dismissedMeta.value = false
 })
 
-const nameInput = ref('')
+// activeProfile 이 있으면 미리 채워줘서 비번만 입력하면 되도록 한다.
+const nameInput = ref(activeProfile.value || '')
 const pwInput = ref('')
 const nameError = ref('')
 async function submitName() {
@@ -58,6 +66,9 @@ async function submitName() {
   if (!res.ok) { nameError.value = '비밀번호가 맞지 않아요.'; return }
   needsBodyForNewProfile.value = isNew
   profile.setProfile(n)
+  // 세션 인증 마커 — 탭/창을 닫으면 사라져서 다음에 다시 비번 받음.
+  sessionStorage.setItem(SESSION_KEY, n)
+  sessionAuthedFor.value = n
   pwInput.value = ''
   // 다음 sync 때 passwordHash 가 vault 에 함께 push 됨(첫 설정의 경우).
   syncStore.syncNow().catch(() => { /* 실패해도 게이트는 통과 */ })
