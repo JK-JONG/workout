@@ -47,12 +47,12 @@ const allBody = computed(() => rawBody.value.filter(b => passes(b.profile)))
 const outColors = ['#ebedf0', '#c8e6c9', '#9be9a8', '#40c463', '#216e39']
 const inColors = ['#ebedf0', '#fde4cf', '#fcc89b', '#f59e0b', '#b45309']
 
-// 음식 섭취 잔디의 색상 max — 권장 칼로리 기준으로 동적 계산.
-// 권장 × 1.2를 max로 잡으면 권장 100%까지는 75% 이하 단계 (중간 톤),
-// 권장 초과 시에만 가장 진한 단계로 표시되어 "권장 미만인데 많음" 오해 방지.
+// 음식 섭취 잔디의 색상 max — 권장 × 2 로 잡으면 levelOf 의 0.5 임계가 권장 100% 와 정확히 일치.
+// → 5단계 중 가운데(bucket 2) 가 "권장 50~100% = 적정" 으로 떨어진다.
+// 가운데 = 적정, 양쪽으로 갈수록 부족/초과.
 const inMax = computed(() => {
-  if (recommendedKcal.value > 0) return Math.round(recommendedKcal.value * 1.2)
-  return 2500
+  if (recommendedKcal.value > 0) return Math.round(recommendedKcal.value * 2)
+  return 4000
 })
 const inMaxLabel = computed(() =>
   recommendedKcal.value > 0
@@ -69,24 +69,25 @@ const outLegend = [
   { label: '강하게', range: '~375' },
   { label: '고강도', range: '375+' },
 ]
-// 음식 섭취 5단계 (권장 × 1.2가 max이므로 각 단계는 권장의 0/30/60/90%)
+// 음식 섭취 5단계 (권장 × 2 가 max → 각 임계는 권장의 0/50/100/150%)
+// 가운데(bucket 2) = 50~100% = "적정". 좌우로 갈수록 부족/초과.
 const inLegend = computed(() => {
   if (recommendedKcal.value > 0) {
     const r = recommendedKcal.value
     return [
-      { label: '없음',     range: '0' },
-      { label: '많이 부족', range: `~${Math.round(r * 0.3).toLocaleString()}` },
-      { label: '부족',     range: `~${Math.round(r * 0.6).toLocaleString()}` },
-      { label: '적정 근처', range: `~${Math.round(r * 0.9).toLocaleString()}` },
-      { label: '많음',     range: `${Math.round(r * 0.9).toLocaleString()}+` },
+      { label: '없음', range: '0' },
+      { label: '부족', range: `~${Math.round(r * 0.5).toLocaleString()}` },
+      { label: '적정', range: `~${Math.round(r * 1.0).toLocaleString()}` },
+      { label: '초과', range: `~${Math.round(r * 1.5).toLocaleString()}` },
+      { label: '많이', range: `${Math.round(r * 1.5).toLocaleString()}+` },
     ]
   }
   return [
-    { label: '없음',  range: '0' },
-    { label: '적음',  range: '~625' },
-    { label: '보통',  range: '~1,250' },
-    { label: '많음',  range: '~1,875' },
-    { label: '많음',  range: '1,875+' },
+    { label: '없음', range: '0' },
+    { label: '부족', range: '~1,000' },
+    { label: '적정', range: '~2,000' },
+    { label: '초과', range: '~3,000' },
+    { label: '많이', range: '3,000+' },
   ]
 })
 
@@ -133,15 +134,14 @@ const hoverEval = computed<{ label: string; tone: string; pct: number }>(() => {
     if (v < 500) return { label: '강하게', tone: 'good', pct: 0 }
     return            { label: '고강도', tone: 'strong', pct: 0 }
   }
-  // 식단
+  // 식단 — 잔디 색 구간(0/50/100/150%)과 정확히 동일하게.
   if (v === 0) return { label: '기록 없음', tone: 'neutral', pct: 0 }
   const rec = recommendedKcal.value
   if (rec <= 0) return { label: '평가 보류', tone: 'neutral', pct: 0 }
   const pct = Math.round((v / rec) * 100)
-  if (pct < 70)   return { label: '많이 부족', tone: 'warn', pct }
-  if (pct < 85)   return { label: '부족',     tone: 'neutral', pct }
-  if (pct <= 110) return { label: '적정',     tone: 'ok', pct }
-  if (pct <= 130) return { label: '초과',     tone: 'warn', pct }
+  if (pct < 50)   return { label: '부족',     tone: 'warn', pct }
+  if (pct <= 100) return { label: '적정',     tone: 'ok', pct }
+  if (pct <= 150) return { label: '초과',     tone: 'warn', pct }
   return            { label: '많이 초과', tone: 'over', pct }
 })
 
