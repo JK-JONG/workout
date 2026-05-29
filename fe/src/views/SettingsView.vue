@@ -18,7 +18,17 @@ const log = useLogStore()
 const catalog = useCatalogStore()
 const { activeProfile } = storeToRefs(profile)
 const { workouts, meals, body } = storeToRefs(log)
-const { customFoods } = storeToRefs(catalog)
+const { customFoods, exerciseRequests } = storeToRefs(catalog)
+
+function copyExerciseRequests() {
+  const text = exerciseRequests.value.map(r => `- ${r.name}`).join('\n')
+  navigator.clipboard.writeText(text).catch(() => { /* */ })
+}
+function removeExerciseRequest(name: string) { catalog.removeExerciseRequest(name) }
+function clearExerciseRequests() {
+  if (!confirm('운동 추가 요청 목록을 모두 비울까요?')) return
+  for (const r of [...exerciseRequests.value]) catalog.removeExerciseRequest(r.name)
+}
 
 const jsonl = useJsonl()
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -539,6 +549,30 @@ function removeCustomFood(id: string) {
         </div>
       </div>
       <div v-if="importError" class="err">{{ importError }}</div>
+    </section>
+
+    <!-- 운동 추가 요청 (관리자) -->
+    <section v-if="exerciseRequests.length" class="card">
+      <div class="card-head">
+        <h2 class="card-title">운동 추가 요청</h2>
+        <span class="muted small">{{ exerciseRequests.length }}개</span>
+      </div>
+      <p class="hint">
+        다른 사용자(또는 내가) 추가 요청한 운동 이름이에요. 클립보드로 복사해서 관리자에게 전달하면 한 번에 카탈로그에 반영됩니다.
+      </p>
+      <ul class="food-list">
+        <li v-for="r in exerciseRequests" :key="r.name" class="food-row">
+          <div class="food-main">
+            <div class="food-name">{{ r.name }}</div>
+            <div class="food-meta muted small">{{ new Date(r.requestedAt).toLocaleString('ko-KR') }}</div>
+          </div>
+          <button class="icon-btn" @click="removeExerciseRequest(r.name)" aria-label="삭제">×</button>
+        </li>
+      </ul>
+      <div style="display: flex; gap: 8px; margin-top: 8px;">
+        <button class="btn btn-soft" @click="copyExerciseRequests">전체 복사</button>
+        <button class="btn btn-soft" @click="clearExerciseRequests">전체 삭제</button>
+      </div>
     </section>
 
     <!-- 내가 등록한 음식 -->

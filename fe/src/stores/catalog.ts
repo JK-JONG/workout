@@ -6,11 +6,15 @@ import { MEAL_PRESETS, type MealPreset } from '@/data/mealPresets'
 import { useProfileStorage } from '@/composables/useProfileStorage'
 
 // 정적 데이터 기반 카탈로그. 커스텀 음식·운동은 프로필별 localStorage에 누적.
+export interface ExerciseRequest { name: string; requestedAt: string }
+
 export const useCatalogStore = defineStore('catalog', () => {
   const customFoods = useProfileStorage<FoodItem[]>('customFoods', [])
   const customExercises = useProfileStorage<ExerciseItem[]>('customExercises', [])
   // 프로필별 운동 즐겨찾기 id 목록.
   const favoriteExerciseIds = useProfileStorage<string[]>('favoriteExerciseIds', [])
+  // 사용자가 추가 요청한 운동 이름 목록 (관리자가 보고 한 번에 카탈로그에 반영).
+  const exerciseRequests = useProfileStorage<ExerciseRequest[]>('exerciseRequests', [])
 
   const exercises = computed<ExerciseItem[]>(() => [...EXERCISES, ...customExercises.value])
   const foods = computed<FoodItem[]>(() => [...FOODS, ...customFoods.value])
@@ -63,11 +67,25 @@ export const useCatalogStore = defineStore('catalog', () => {
       : [...favoriteExerciseIds.value, id]
   }
 
+  function addExerciseRequest(name: string): boolean {
+    const n = name.trim()
+    if (!n || n.length > 60) return false
+    // 중복 방지 (같은 이름이 이미 요청에 있거나, 카탈로그에 이미 있으면 거부)
+    if (exerciseRequests.value.some(r => r.name === n)) return false
+    if (exercises.value.some(e => e.name === n)) return false
+    exerciseRequests.value = [...exerciseRequests.value, { name: n, requestedAt: new Date().toISOString() }]
+    return true
+  }
+  function removeExerciseRequest(name: string) {
+    exerciseRequests.value = exerciseRequests.value.filter(r => r.name !== name)
+  }
+
   return {
-    exercises, foods, mealPresets, customFoods, customExercises, favoriteExerciseIds,
+    exercises, foods, mealPresets, customFoods, customExercises, favoriteExerciseIds, exerciseRequests,
     routines, foodById,
     addCustomFood, removeCustomFood,
     addCustomExercise, removeCustomExercise,
     isFavorite, toggleFavorite,
+    addExerciseRequest, removeExerciseRequest,
   }
 })
