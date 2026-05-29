@@ -166,22 +166,53 @@ function inWindow(date: string, days: number): boolean {
 }
 function avgKcalOut(days: number): number {
   let total = 0
-  for (const [date, kcal] of dailyOutMap.value) if (inWindow(date, days)) total += kcal
-  return Math.round(total / days)
+  let activeDays = 0
+  for (const [date, kcal] of dailyOutMap.value) {
+    if (!inWindow(date, days)) continue
+    if (kcal > 0) {
+      total += kcal
+      activeDays++
+    }
+  }
+  return Math.round(total / Math.max(1, activeDays))
 }
 function avgKcalIn(days: number): number {
   let total = 0
-  for (const [date, kcal] of dailyInMap.value) if (inWindow(date, days)) total += kcal
-  return Math.round(total / days)
+  let activeDays = 0
+  for (const [date, kcal] of dailyInMap.value) {
+    if (!inWindow(date, days)) continue
+    if (kcal > 0) {
+      total += kcal
+      activeDays++
+    }
+  }
+  return Math.round(total / Math.max(1, activeDays))
 }
 function workoutDays(days: number): number {
   const dates = new Set<string>()
   for (const w of allWorkouts.value) if (inWindow(w.date, days)) dates.add(w.date)
   return dates.size
 }
+function mealDays(days: number): number {
+  const dates = new Set<string>()
+  for (const m of allMeals.value) if (inWindow(m.date, days)) dates.add(m.date)
+  return dates.size
+}
 
-const stats30 = computed(() => ({ avgOut: avgKcalOut(30), avgIn: avgKcalIn(30), days: workoutDays(30) }))
-const stats90 = computed(() => ({ avgOut: avgKcalOut(90), avgIn: avgKcalIn(90), days: workoutDays(90) }))
+const stats30 = computed(() => ({
+  avgOut: avgKcalOut(30),
+  avgIn: avgKcalIn(30),
+  days: workoutDays(30),
+  outDays: workoutDays(30),
+  inDays: mealDays(30),
+}))
+const stats90 = computed(() => ({
+  avgOut: avgKcalOut(90),
+  avgIn: avgKcalIn(90),
+  days: workoutDays(90),
+  outDays: workoutDays(90),
+  inDays: mealDays(90),
+}))
 
 // ── 프로필별 최근 30일 활동 분포 ──
 const perProfileActivity = computed(() => {
@@ -266,19 +297,26 @@ const bodyChart = computed(() => {
 })
 
 // ── 칼로리 추이 (최근 30일) ──
+// bodyChart 패턴 따라 "데이터 있는 날만 점". 빈 날은 (date, 0) 로 채우지 않음.
 const kcalChart = computed(() => {
   const base = new Date()
   base.setHours(0, 0, 0, 0)
   base.setDate(base.getDate() - 29)
-  const pts: { idx: number; out: number; in: number }[] = []
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(base)
-    d.setDate(base.getDate() + i)
-    const key = d.toISOString().slice(0, 10)
-    const out = dailyOutMap.value.get(key) ?? 0
-    const inv = dailyInMap.value.get(key) ?? 0
-    pts.push({ idx: i, out, in: inv })
+
+  const outPoints: { x: number; y: number }[] = []
+  const inPoints: { x: number; y: number }[] = []
+
+  for (const [date, kcal] of dailyOutMap.value) {
+    if (!inWindow(date, 30) || kcal <= 0) continue
+    outPoints.push({ x: dateToDayIdx(date, base), y: kcal })
   }
+  for (const [date, kcal] of dailyInMap.value) {
+    if (!inWindow(date, 30) || kcal <= 0) continue
+    inPoints.push({ x: dateToDayIdx(date, base), y: kcal })
+  }
+  outPoints.sort((a, b) => a.x - b.x)
+  inPoints.sort((a, b) => a.x - b.x)
+
   const xLabels: { x: number; label: string }[] = []
   for (let i = 0; i < 30; i += 7) {
     if (i > 29 - 3) continue   // 마지막 날짜 라벨과 너무 가까우면 생략
@@ -289,13 +327,20 @@ const kcalChart = computed(() => {
   const lastKcal = new Date(base)
   lastKcal.setDate(base.getDate() + 29)
   xLabels.push({ x: 29, label: `${lastKcal.getMonth() + 1}/${lastKcal.getDate()}` })
-  return { pts, xLabels }
+  return { outPoints, inPoints, xLabels }
 })
 // 소모(그린) / 섭취(빨강) — 대비 확실히 보이도록 채도 높은 색상으로 분리
-const kcalSeries = computed(() => [
-  { label: '소모', color: '#16a34a', points: kcalChart.value.pts.map(p => ({ x: p.idx, y: p.out })) },
-  { label: '섭취', color: '#dc2626', points: kcalChart.value.pts.map(p => ({ x: p.idx, y: p.in })) },
-])
+// 빈 series 는 제외하여 LineChart 가 "기록 없음"을 정확히 표시할 수 있게 함
+const kcalSeries = computed(() => {
+  const out: { label: string; color: string; points: { x: number; y: number }[] }[] = []
+  if (kcalChart.value.outPoints.length) {
+    out.push({ label: '소모', color: '#16a34a', points: kcalChart.value.outPoints })
+  }
+  if (kcalChart.value.inPoints.length) {
+    out.push({ label: '섭취', color: '#dc2626', points: kcalChart.value.inPoints })
+  }
+  return out
+})
 
 // ── PR (모든 프로필 합산, 사람도 표시) ──
 const personalBests = computed(() => {
@@ -355,6 +400,9 @@ const totalCounts = computed(() => ({
           <span class="kpi-sub"><span class="kpi-sub-ico">🔥</span>평균 소모 <b class="num">{{ stats30.avgOut }}</b></span>
           <span class="kpi-sub"><span class="kpi-sub-ico">🍽</span>평균 섭취 <b class="num">{{ stats30.avgIn }}</b></span>
         </div>
+        <div class="kpi-caption muted small">
+          운동한 {{ stats30.outDays }}일 · 식단 {{ stats30.inDays }}일 기준
+        </div>
       </div>
       <div class="kpi-box kpi-90">
         <div class="kpi-eyebrow">최근 90일{{ isAll ? ' · 합산' : ` · ${selectedProfile}` }}</div>
@@ -365,6 +413,9 @@ const totalCounts = computed(() => ({
         <div class="kpi-subs">
           <span class="kpi-sub"><span class="kpi-sub-ico">🔥</span>평균 소모 <b class="num">{{ stats90.avgOut }}</b></span>
           <span class="kpi-sub"><span class="kpi-sub-ico">🍽</span>평균 섭취 <b class="num">{{ stats90.avgIn }}</b></span>
+        </div>
+        <div class="kpi-caption muted small">
+          운동한 {{ stats90.outDays }}일 · 식단 {{ stats90.inDays }}일 기준
         </div>
       </div>
       <div class="kpi-box kpi-total">
@@ -495,7 +546,14 @@ const totalCounts = computed(() => ({
         <!-- 칼로리 -->
         <div class="metric-cell">
           <div class="chart-label">칼로리 · kcal <span class="muted small">· 최근 30일</span></div>
-          <LineChart :series="kcalSeries" :x-labels="kcalChart.xLabels" :show-legend="true" unit="kcal" />
+          <LineChart
+            v-if="kcalSeries.length"
+            :series="kcalSeries"
+            :x-labels="kcalChart.xLabels"
+            :show-legend="true"
+            unit="kcal"
+          />
+          <div v-else class="metric-empty">아직 기록 없음</div>
         </div>
       </div>
     </section>
@@ -653,6 +711,12 @@ const totalCounts = computed(() => ({
 .kpi-sub { display: inline-flex; align-items: center; gap: 4px; }
 .kpi-sub-ico { font-size: 12px; line-height: 1; }
 .kpi-sub b { font-weight: 600; color: var(--c-text); }
+.kpi-caption {
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  opacity: 0.85;
+  margin-top: 2px;
+}
 
 .ppa { display: grid; gap: 4px; }
 .ppa-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: var(--radius-sm); }
