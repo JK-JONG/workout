@@ -335,16 +335,17 @@ const slotIcon: Record<Slot | '기타', string> = {
 }
 .meal-slot-icon { font-size: 14px; }
 .meal-slot-name {
-  font-size: var(--fs-sm);
-  font-weight: 700;
+  font-size: var(--fs-md);
+  font-weight: 800;
   color: var(--c-text);
-  letter-spacing: -0.005em;
+  letter-spacing: -0.01em;
 }
 .meal-slot-kcal {
   font-family: var(--font-num);
-  font-size: var(--fs-xs);
-  font-weight: 600;
+  font-size: var(--fs-md);
+  font-weight: 800;
   color: var(--c-accent-ink);
+  letter-spacing: -0.01em;
 }
 .meal-items { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; }
 .meal-row {
@@ -358,22 +359,23 @@ const slotIcon: Record<Slot | '기타', string> = {
 }
 .meal-row:hover { background: var(--c-surface-2); }
 .meal-name {
-  color: var(--c-text);
+  color: var(--c-text-soft);
+  font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .meal-portion {
   font-family: var(--font-num);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--c-text-muted);
-  font-weight: 600;
+  font-weight: 500;
 }
 .meal-kcal {
   font-family: var(--font-num);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  color: var(--c-text-soft);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--c-text-muted);
 }
 
 .macro-foot {
