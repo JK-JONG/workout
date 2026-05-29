@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useLogStore, type SetLog } from '@/stores/log'
+import { useLogStore, type SetLog, type WorkoutEntry } from '@/stores/log'
 import { useCatalogStore } from '@/stores/catalog'
 import { type ExerciseItem } from '@/data/exercises'
 import { kcalByDuration, kcalByDistance, kcalByReps } from '@/composables/useCalorie'
@@ -69,6 +69,26 @@ function isCategoryOpen(cat: string): boolean {
   if (exerciseQuery.value.trim()) return true  // 검색 중에는 모두 펼침
   return Boolean(openCategories.value[cat])
 }
+
+// 오늘 운동 기록 — 부위별로 그룹. 아코디언 (기본 닫힘).
+const todayByCategory = computed<[string, WorkoutEntry[]][]>(() => {
+  const byId = new Map(exercises.value.map(e => [e.id, e]))
+  const m = new Map<string, WorkoutEntry[]>()
+  for (const w of workoutsOfDate.value) {
+    const cat = byId.get(w.exerciseId)?.category ?? '기타'
+    const ckey = (CATEGORY_ORDER as readonly string[]).includes(cat) ? cat : '기타'
+    const list = m.get(ckey) ?? []
+    list.push(w)
+    m.set(ckey, list)
+  }
+  const order = [...CATEGORY_ORDER, '기타']
+  return order.filter(c => m.has(c)).map(c => [c, m.get(c)!])
+})
+const todayOpenCategories = ref<Record<string, boolean>>({})
+function toggleTodayCategory(cat: string) {
+  todayOpenCategories.value = { ...todayOpenCategories.value, [cat]: !todayOpenCategories.value[cat] }
+}
+function isTodayCategoryOpen(cat: string): boolean { return Boolean(todayOpenCategories.value[cat]) }
 
 const selectedExercise = ref<ExerciseItem | null>(null)
 const setLogs = ref<SetLog[]>([])
@@ -340,36 +360,48 @@ function lastSummary(exId: string): string | null {
           </div>
         </div>
 
-        <!-- 우측 항상 표시되는 오늘 운동 기록 -->
+        <!-- 우측 항상 표시되는 오늘 운동 기록 (부위별 아코디언) -->
         <div class="today-card">
           <div class="today-head">
             <div class="today-title">오늘 운동 기록</div>
             <span class="muted small">{{ workoutsOfDate.length }}건</span>
           </div>
-          <ul v-if="workoutsOfDate.length" class="today-list">
-            <li v-for="w in workoutsOfDate" :key="w.id" class="today-item">
-              <div class="today-item-main">
-                <div class="today-item-name">{{ w.exerciseName }}</div>
-                <div class="today-item-sub muted num">
-                  <template v-if="w.unit === 'reps'">
-                    <template v-if="w.setLogs?.length">
-                      {{ w.setLogs.length }}세트 ·
-                      <span v-for="(s, i) in w.setLogs" :key="i">{{ i > 0 ? ' / ' : '' }}{{ s.reps }}{{ s.weight ? '×' + s.weight + 'kg' : '' }}</span>
-                    </template>
-                    <template v-else>
-                      {{ w.sets }}×{{ w.reps }}<span v-if="w.weight"> @{{ w.weight }}kg</span>
-                    </template>
-                  </template>
-                  <template v-else-if="w.unit === 'time'">{{ w.minutes }}분</template>
-                  <template v-else>{{ w.km }} km</template>
-                </div>
-              </div>
-              <div class="today-item-actions">
-                <span class="num accent">−{{ w.kcal }}</span>
-                <button class="icon-btn" @click="log.removeWorkout(w.id)" aria-label="삭제">×</button>
-              </div>
-            </li>
-          </ul>
+          <div v-if="workoutsOfDate.length" class="today-cats">
+            <div
+              v-for="[cat, items] in todayByCategory" :key="'today-' + cat"
+              class="today-cat" :class="{ open: isTodayCategoryOpen(cat) }"
+            >
+              <button class="today-cat-head" type="button" @click="toggleTodayCategory(cat)" :aria-expanded="isTodayCategoryOpen(cat)">
+                <span class="today-cat-name">{{ cat }}</span>
+                <span class="muted small">({{ items.length }})</span>
+                <span class="today-cat-caret" aria-hidden="true">{{ isTodayCategoryOpen(cat) ? '▾' : '▸' }}</span>
+              </button>
+              <ul v-show="isTodayCategoryOpen(cat)" class="today-list">
+                <li v-for="w in items" :key="w.id" class="today-item">
+                  <div class="today-item-main">
+                    <div class="today-item-name">{{ w.exerciseName }}</div>
+                    <div class="today-item-sub muted num">
+                      <template v-if="w.unit === 'reps'">
+                        <template v-if="w.setLogs?.length">
+                          {{ w.setLogs.length }}세트 ·
+                          <span v-for="(s, i) in w.setLogs" :key="i">{{ i > 0 ? ' / ' : '' }}{{ s.reps }}{{ s.weight ? '×' + s.weight + 'kg' : '' }}</span>
+                        </template>
+                        <template v-else>
+                          {{ w.sets }}×{{ w.reps }}<span v-if="w.weight"> @{{ w.weight }}kg</span>
+                        </template>
+                      </template>
+                      <template v-else-if="w.unit === 'time'">{{ w.minutes }}분</template>
+                      <template v-else>{{ w.km }} km</template>
+                    </div>
+                  </div>
+                  <div class="today-item-actions">
+                    <span class="num accent">−{{ w.kcal }}</span>
+                    <button class="icon-btn" @click="log.removeWorkout(w.id)" aria-label="삭제">×</button>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
           <div v-else class="today-empty muted small">
             아직 오늘 추가된 운동이 없습니다.
           </div>
@@ -729,6 +761,14 @@ function lastSummary(exId: string): string | null {
 .accordion .accordion-head:hover { background: var(--c-border); border-radius: var(--radius-sm); }
 .accordion-caret { margin-left: auto; color: var(--c-text-muted); font-size: 12px; }
 .accordion:not(.open) .accordion-head { opacity: 0.85; }
+
+/* 오늘 운동 기록 부위별 아코디언 */
+.today-cats { display: flex; flex-direction: column; gap: 4px; }
+.today-cat { border-radius: var(--radius-sm); }
+.today-cat-head { width: 100%; display: flex; align-items: center; gap: 6px; background: transparent; border: none; cursor: pointer; padding: 6px 4px; text-align: left; font: inherit; font-size: var(--fs-sm); }
+.today-cat-head:hover { background: var(--c-border); border-radius: var(--radius-sm); }
+.today-cat-name { font-weight: 600; color: var(--c-text); }
+.today-cat-caret { margin-left: auto; color: var(--c-text-muted); font-size: 11px; }
 .icon-btn { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: var(--c-text-muted); border-radius: 50%; transition: background 0.15s, color 0.15s; }
 .icon-btn:hover { background: var(--c-border); color: var(--c-text); }
 .icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
