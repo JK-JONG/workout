@@ -11,6 +11,8 @@ export interface ExerciseRequest { name: string; requestedAt: string }
 export const useCatalogStore = defineStore('catalog', () => {
   const customFoods = useProfileStorage<FoodItem[]>('customFoods', [])
   const customExercises = useProfileStorage<ExerciseItem[]>('customExercises', [])
+  // 커스텀 음식 삭제 톰스톤. sync union 머지에서 부활을 막는다.
+  const deletedCustomFoodIds = useProfileStorage<string[]>('deletedCustomFoodIds', [])
   // 프로필별 운동 즐겨찾기 id 목록.
   const favoriteExerciseIds = useProfileStorage<string[]>('favoriteExerciseIds', [])
   // 사용자가 추가 요청한 운동 이름 목록 (관리자가 보고 한 번에 카탈로그에 반영).
@@ -48,6 +50,9 @@ export const useCatalogStore = defineStore('catalog', () => {
 
   function removeCustomFood(id: string) {
     customFoods.value = customFoods.value.filter(f => f.id !== id)
+    if (!deletedCustomFoodIds.value.includes(id)) {
+      deletedCustomFoodIds.value = [...deletedCustomFoodIds.value, id]
+    }
   }
 
   function addCustomExercise(payload: Omit<ExerciseItem, 'id'>): ExerciseItem {
@@ -82,6 +87,7 @@ export const useCatalogStore = defineStore('catalog', () => {
 
   return {
     exercises, foods, mealPresets, customFoods, customExercises, favoriteExerciseIds, exerciseRequests,
+    deletedCustomFoodIds,
     routines, foodById,
     addCustomFood, removeCustomFood,
     addCustomExercise, removeCustomExercise,

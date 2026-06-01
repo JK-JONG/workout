@@ -85,6 +85,12 @@ export const useLogStore = defineStore('log', () => {
   const body = useProfileStorage<BodyEntry[]>('body', [])
   const selectedDate = useProfileStorage<string>('selectedDate', todayStr())
 
+  // 항목별 삭제 톰스톤. sync union 머지에서 부활을 막기 위해 지운 id 를 누적 보관한다.
+  // 같은 운동을 다시 추가해도 새 id 가 발급되므로 충돌 없음.
+  const deletedWorkoutIds = useProfileStorage<string[]>('deletedWorkoutIds', [])
+  const deletedMealIds = useProfileStorage<string[]>('deletedMealIds', [])
+  const deletedBodyIds = useProfileStorage<string[]>('deletedBodyIds', [])
+
   // BMR 계산용 프로필 정적 정보. 처음 신체 입력 시 함께 받음.
   const sex = useProfileStorage<Sex | ''>('sex', '')
   const birthYear = useProfileStorage<number | null>('birthYear', null)
@@ -148,9 +154,18 @@ export const useLogStore = defineStore('log', () => {
   function addBody(e: Omit<BodyEntry, 'id' | 'createdAt'>) {
     body.value = [...body.value, { ...e, id: crypto.randomUUID(), createdAt: Date.now() }]
   }
-  function removeMeal(id: string) { meals.value = meals.value.filter(m => m.id !== id) }
-  function removeWorkout(id: string) { workouts.value = workouts.value.filter(w => w.id !== id) }
-  function removeBody(id: string) { body.value = body.value.filter(b => b.id !== id) }
+  function removeMeal(id: string) {
+    meals.value = meals.value.filter(m => m.id !== id)
+    if (!deletedMealIds.value.includes(id)) deletedMealIds.value = [...deletedMealIds.value, id]
+  }
+  function removeWorkout(id: string) {
+    workouts.value = workouts.value.filter(w => w.id !== id)
+    if (!deletedWorkoutIds.value.includes(id)) deletedWorkoutIds.value = [...deletedWorkoutIds.value, id]
+  }
+  function removeBody(id: string) {
+    body.value = body.value.filter(b => b.id !== id)
+    if (!deletedBodyIds.value.includes(id)) deletedBodyIds.value = [...deletedBodyIds.value, id]
+  }
 
   function updateBody(id: string, patch: Partial<Omit<BodyEntry, 'id' | 'createdAt'>>) {
     body.value = body.value.map(b => b.id === id ? { ...b, ...patch } : b)
@@ -258,6 +273,7 @@ export const useLogStore = defineStore('log', () => {
     upsertWorkout,
     weightKg,
     meals, workouts, body, selectedDate,
+    deletedWorkoutIds, deletedMealIds, deletedBodyIds,
     mealsOfDate, workoutsOfDate, bodyOfDate,
     kcalIn, kcalOut, kcalNet,
     dailyOutMap, dailyInMap,

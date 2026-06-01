@@ -7,13 +7,27 @@ import type { FoodItem } from '@/data/foods'
 //     가 없으므로 mergeVaults 에서 `?? []` 로 안전하게 처리한다.
 // v3: VaultProfile.passwordHash 추가 — 프로필별 비밀번호(sha256 hex). v2 vault 는
 //     passwordHash 가 없는데, 다음 로그인 시 사용자가 입력한 값이 첫 설정으로 저장된다.
-export const VAULT_SCHEMA = 3
+// v4: VaultProfile.deletedIds(워크아웃/식단/신체/커스텀음식 톰스톤) 추가 — 한 기기에서
+//     삭제한 항목이 sync 후 union 머지로 부활하던 문제 해결. v3 vault 는 deletedIds 가
+//     없으므로 빈 배열로 안전 처리한다.
+export const VAULT_SCHEMA = 4
 
 export interface VaultMeta {
   weight?: number
   sex?: Sex | ''
   birthYear?: number | null
   activityLevel?: number
+}
+
+export interface VaultDeletedIds {
+  workouts: string[]
+  meals: string[]
+  body: string[]
+  customFoods: string[]
+}
+
+export function emptyDeletedIds(): VaultDeletedIds {
+  return { workouts: [], meals: [], body: [], customFoods: [] }
 }
 
 export interface VaultProfile {
@@ -24,6 +38,8 @@ export interface VaultProfile {
   meta: VaultMeta
   // 프로필 비밀번호의 sha256 hex. 비어있으면 vault 에 비번이 아직 설정 안 됨(v2 호환).
   passwordHash?: string
+  // 항목별 삭제 톰스톤. v3 vault 는 이 필드가 없으므로 mergeProfile 에서 빈 배열로 처리.
+  deletedIds?: VaultDeletedIds
 }
 
 export interface VaultData {
@@ -44,17 +60,29 @@ function unique(arr: string[]): string[] {
 }
 
 // id 기준 합집합. local 을 우선 보존하고 remote 에만 있는 항목을 뒤에 덧붙인다.
+// 톰스톤(deleted) 에 포함된 id 는 양쪽 모두에서 제외 — 삭제 전파를 보장한다.
 // (정렬은 화면단에서 date/createdAt 으로 다시 하므로 순서는 중요치 않다.)
-function unionById<T extends { id: string }>(local: T[], remote: T[]): T[] {
-  const seen = new Set(local.map(x => x.id))
-  const out = [...local]
-  for (const r of remote) {
-    if (!seen.has(r.id)) {
-      out.push(r)
-      seen.add(r.id)
-    }
+function unionById<T extends { id: string }>(local: T[], remote: T[], deleted?: Set<string>): T[] {
+  const seen = new Set<string>()
+  const out: T[] = []
+  for (const x of [...local, ...remote]) {
+    if (deleted?.has(x.id)) continue
+    if (seen.has(x.id)) continue
+    out.push(x)
+    seen.add(x.id)
   }
   return out
+}
+
+function mergeDeletedIds(local?: VaultDeletedIds, remote?: VaultDeletedIds): VaultDeletedIds {
+  const l = local ?? emptyDeletedIds()
+  const r = remote ?? emptyDeletedIds()
+  return {
+    workouts: unique([...l.workouts, ...r.workouts]),
+    meals: unique([...l.meals, ...r.meals]),
+    body: unique([...l.body, ...r.body]),
+    customFoods: unique([...l.customFoods, ...r.customFoods]),
+  }
 }
 
 // 스칼라 메타 병합: remote 에 의미있는 값이 있으면 remote, 없으면 local.
@@ -69,15 +97,17 @@ function mergeMeta(local: VaultMeta, remote: VaultMeta): VaultMeta {
 }
 
 function mergeProfile(local: VaultProfile, remote: VaultProfile): VaultProfile {
+  const deleted = mergeDeletedIds(local.deletedIds, remote.deletedIds)
   return {
-    workouts: unionById(local.workouts, remote.workouts),
-    meals: unionById(local.meals, remote.meals),
-    body: unionById(local.body, remote.body),
-    customFoods: unionById(local.customFoods, remote.customFoods),
+    workouts: unionById(local.workouts, remote.workouts, new Set(deleted.workouts)),
+    meals: unionById(local.meals, remote.meals, new Set(deleted.meals)),
+    body: unionById(local.body, remote.body, new Set(deleted.body)),
+    customFoods: unionById(local.customFoods, remote.customFoods, new Set(deleted.customFoods)),
     meta: mergeMeta(local.meta, remote.meta),
     // password 는 remote(vault 의 정본) 우선. 두 기기에서 동시에 첫 설정한 경우엔
     // remote 가 살아남고 local 입력은 다음 sync 에서 reject 된다(검증 단계에서).
     passwordHash: remote.passwordHash || local.passwordHash,
+    deletedIds: deleted,
   }
 }
 

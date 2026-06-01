@@ -6,6 +6,7 @@ import { useProfileStore } from '@/stores/profile'
 import { useLogStore, type Sex } from '@/stores/log'
 import { useCatalogStore } from '@/stores/catalog'
 import {
+  emptyDeletedIds,
   mergeVaults,
   VAULT_SCHEMA,
   type VaultData,
@@ -122,6 +123,12 @@ export const useSyncStore = defineStore('sync', () => {
             activityLevel: log.activityLevel,
           },
           passwordHash,
+          deletedIds: {
+            workouts: [...log.deletedWorkoutIds],
+            meals: [...log.deletedMealIds],
+            body: [...log.deletedBodyIds],
+            customFoods: [...catalog.deletedCustomFoodIds],
+          },
         }
       } else {
         profiles[name] = {
@@ -136,6 +143,12 @@ export const useSyncStore = defineStore('sync', () => {
             activityLevel: readKey<number | undefined>(name, 'activityLevel', undefined),
           },
           passwordHash,
+          deletedIds: {
+            workouts: readKey<string[]>(name, 'deletedWorkoutIds', []),
+            meals: readKey<string[]>(name, 'deletedMealIds', []),
+            body: readKey<string[]>(name, 'deletedBodyIds', []),
+            customFoods: readKey<string[]>(name, 'deletedCustomFoodIds', []),
+          },
         }
       }
     }
@@ -174,6 +187,11 @@ export const useSyncStore = defineStore('sync', () => {
       writeKey(name, 'meals', p.meals)
       writeKey(name, 'body', p.body)
       writeKey(name, 'customFoods', p.customFoods)
+      const dIds = p.deletedIds ?? emptyDeletedIds()
+      writeKey(name, 'deletedWorkoutIds', dIds.workouts)
+      writeKey(name, 'deletedMealIds', dIds.meals)
+      writeKey(name, 'deletedBodyIds', dIds.body)
+      writeKey(name, 'deletedCustomFoodIds', dIds.customFoods)
       if (p.meta.weight != null) writeKey(name, 'weight', p.meta.weight)
       if (p.meta.sex) writeKey(name, 'sex', p.meta.sex)
       if (p.meta.birthYear != null) writeKey(name, 'birthYear', p.meta.birthYear)
@@ -196,6 +214,11 @@ export const useSyncStore = defineStore('sync', () => {
       log.meals = p.meals
       log.body = p.body
       catalog.customFoods = p.customFoods
+      const dIds = p.deletedIds ?? emptyDeletedIds()
+      log.deletedWorkoutIds = dIds.workouts
+      log.deletedMealIds = dIds.meals
+      log.deletedBodyIds = dIds.body
+      catalog.deletedCustomFoodIds = dIds.customFoods
       if (p.meta.weight != null) log.weightKg = p.meta.weight
       if (p.meta.sex) log.sex = p.meta.sex
       if (p.meta.birthYear !== undefined) log.birthYear = p.meta.birthYear ?? null
@@ -313,6 +336,7 @@ export const useSyncStore = defineStore('sync', () => {
     watch(
       () => [
         log.workouts, log.meals, log.body, catalog.customFoods,
+        log.deletedWorkoutIds, log.deletedMealIds, log.deletedBodyIds, catalog.deletedCustomFoodIds,
         log.weightKg, log.sex, log.birthYear, log.activityLevel,
         profile.knownProfiles, profile.deletedProfiles, profile.activeProfile,
       ],
